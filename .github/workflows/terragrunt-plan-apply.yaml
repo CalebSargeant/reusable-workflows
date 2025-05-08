@@ -86,22 +86,13 @@ jobs:
 
       - name: Export AWS Environment Variables
         run: |
-          echo "AWS_REGION=${{ inputs.aws_region }}" >> $GITHUB_ENV
-
-          # Export all GitHub variables as TF_VAR_* environment variables
-          echo "Exporting GitHub variables as Terraform variables"
-          for var in $(env | grep -E '^(GITHUB_|CI_)' | cut -d= -f1); do
-            echo "TF_VAR_${var,,}=${!var}" >> $GITHUB_ENV
-          done
-
-          # Export all secrets as TF_VAR_* environment variables (without printing values)
-          echo "Exporting secrets as Terraform variables (values masked)"
-          for s in $(echo '${{ toJSON(secrets) }}' | jq -r 'keys[]'); do
-            if [[ "$s" != "github_token" && "$s" != "GITHUB_TOKEN" ]]; then
-              echo "TF_VAR_${s,,}=***" 
-              echo "TF_VAR_${s,,}=${{ secrets[format('{0}', s)] }}" >> $GITHUB_ENV
-            fi
-          done
+          # For AWS credentials
+          echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+          
+          # For Infracost
+          if [[ -n "${{ secrets.INFRACOST_API_KEY }}" ]]; then
+            echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> $GITHUB_ENV
+          fi
 
       - name: Plan
         id: tg-plan
@@ -174,22 +165,13 @@ jobs:
 
       - name: Export AWS Environment Variables
         run: |
-          echo "AWS_REGION=${{ inputs.aws_region }}" >> $GITHUB_ENV
-
-          # Export all GitHub variables as TF_VAR_* environment variables
-          echo "Exporting GitHub variables as Terraform variables"
-          for var in $(env | grep -E '^(GITHUB_|CI_)' | cut -d= -f1); do
-            echo "TF_VAR_${var,,}=${!var}" >> $GITHUB_ENV
-          done
-
-          # Export all secrets as TF_VAR_* environment variables (without printing values)
-          echo "Exporting secrets as Terraform variables (values masked)"
-          for s in $(echo '${{ toJSON(secrets) }}' | jq -r 'keys[]'); do
-            if [[ "$s" != "github_token" && "$s" != "GITHUB_TOKEN" ]]; then
-              echo "TF_VAR_${s,,}=***" 
-              echo "TF_VAR_${s,,}=${{ secrets[format('{0}', s)] }}" >> $GITHUB_ENV
-            fi
-          done
+          # For AWS credentials
+          echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+          
+          # For Infracost
+          if [[ -n "${{ secrets.INFRACOST_API_KEY }}" ]]; then
+            echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> $GITHUB_ENV
+          fi
 
       - name: Deploy
         uses: gruntwork-io/terragrunt-action@v2
