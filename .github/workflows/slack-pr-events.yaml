@@ -1,0 +1,62 @@
+name: Slack Pull Request Events
+
+on:
+  # Keep original triggers if you want this workflow to run on its own too
+  pull_request:
+    types:
+      [
+        assigned,
+        unassigned,
+        labeled,
+        unlabeled,
+        opened,
+        edited,
+        closed,
+        reopened,
+        synchronize,
+        converted_to_draft,
+        ready_for_review,
+        locked,
+        unlocked,
+        review_requested,
+        review_request_removed,
+        auto_merge_enabled,
+        auto_merge_disabled
+      ]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  issue_comment:
+    types: [created, edited, deleted]
+  # Add workflow_call trigger to make it reusable
+  workflow_call:
+    # Define inputs for customization if needed
+    inputs:
+      slack_channel_id:
+        description: 'The Slack channel ID to post notifications to'
+        required: true
+        type: string
+    # Define secrets that need to be passed
+    secrets:
+      GH_TOKEN:
+        description: 'GitHub token with necessary permissions'
+        required: true
+      SLACK_BOT_TOKEN:
+        description: 'Slack Bot token for authentication'
+        required: true
+
+jobs:
+  pull_request_workflow:
+    runs-on: ubuntu-latest
+    name: A job that notifies slack on PR events
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Run pull request workflow
+        uses: cakarci/pull-request-workflow@v1.11.5
+        with:
+          github-token: ${{ secrets.GH_TOKEN }}
+          slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
+          slack-channel-id: ${{ inputs.slack_channel_id }}
