@@ -11,7 +11,7 @@ on:
         type: string
         description: Directory where Terragrunt commands will be executed
         required: false
-        default: ./terraform
+        default: ./terraform/aws/${{ inputs.environment }}
       terraform_version:
         type: string
         description: Terraform version to use
