@@ -4,8 +4,7 @@
 name: OpenAI Code Review
 
 on:
-  pull_request:
-    types: [opened, synchronize]
+  workflow_call:
 
 jobs:
   review:
