@@ -11,6 +11,7 @@ A reusable workflow for running Terragrunt plan and apply operations with AWS au
 - AWS authentication using OpenID Connect (OIDC)
 - Configurable Terraform and Terragrunt versions
 - Automatic PR comments with plan output
+- Infracost integration for cloud cost estimation
 - Conditional apply based on branch and approval
 - Environment variable handling for Terraform variables
 - Simplified setup and execution
@@ -38,9 +39,11 @@ jobs:
       terragrunt_version: 0.45.0
       aws_region: us-east-1
       enable_comments: true
+      enable_infracost: true
       auto_approve: ${{ github.ref == 'refs/heads/main' }}
     secrets:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 ```
 
 ### Inputs
@@ -53,6 +56,7 @@ jobs:
 | `terragrunt_version` | Terragrunt version to use | No | `latest` |
 | `aws_region` | AWS region to use | No | `us-east-1` |
 | `enable_comments` | Enable PR comments for plan output | No | `true` |
+| `enable_infracost` | Enable Infracost cost estimation | No | `true` |
 | `auto_approve` | Auto approve apply (only for main/master branch) | No | `false` |
 
 ### Secrets
@@ -60,6 +64,7 @@ jobs:
 | Name | Description | Required |
 |------|-------------|----------|
 | `AWS_ROLE_TO_ASSUME` | AWS IAM role ARN to assume | Yes |
+| `INFRACOST_API_KEY` | API key for Infracost cost estimation | No |
 
 ### AWS Setup
 
@@ -92,3 +97,14 @@ To use this workflow with AWS, you need to set up OIDC authentication:
 ```
 
 3. Store the role ARN as a secret in your GitHub repository
+
+### Infracost Setup
+
+To use the Infracost integration for cloud cost estimation:
+
+1. Sign up for a free Infracost account at [infracost.io](https://www.infracost.io/)
+2. Get your API key from the Infracost dashboard
+3. Store the API key as the `INFRACOST_API_KEY` secret in your GitHub repository
+4. Enable Infracost in your workflow by setting `enable_infracost: true`
+
+When enabled, Infracost will analyze your Terragrunt/Terraform code and provide cost estimates as comments on your pull requests.
