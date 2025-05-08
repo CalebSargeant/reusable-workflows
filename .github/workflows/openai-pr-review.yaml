@@ -5,7 +5,9 @@ name: OpenAI Code Review
 
 on:
   workflow_call:
-
+    secrets:
+      OPENAI_API_KEY:
+        description: OpenAI API Key
 jobs:
   review:
     permissions: write-all # Check permission when leave comment action failed
