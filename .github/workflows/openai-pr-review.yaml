@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: OpenAI PR Review
-        uses: cawcaw253/ai-review-action@latest
+        uses: cawcaw253/ai-review-action@v1.2.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
