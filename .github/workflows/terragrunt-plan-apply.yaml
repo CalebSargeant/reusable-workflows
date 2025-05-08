@@ -157,7 +157,6 @@ jobs:
           behavior: update
           terraform-workspace: ${{ inputs.environment }}
 
-
   deploy:
     runs-on: ubuntu-latest
     needs: [ plan ]
