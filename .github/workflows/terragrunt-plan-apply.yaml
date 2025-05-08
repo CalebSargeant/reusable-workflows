@@ -66,9 +66,9 @@ jobs:
       - name: Check terragrunt HCL
         uses: gruntwork-io/terragrunt-action@v2
         with:
-          tofu_version: ${{ env.tofu_version }}
-          tg_version: ${{ env.tg_version }}
-          tg_dir: ${{ env.working_dir }}
+          tofu_version: ${{ inputs.terraform_version }}
+          tg_version: ${{ inputs.terragrunt_version }}
+          tg_dir: ${{ inputs.working_dir }}
           tg_command: 'hclfmt --terragrunt-check --terragrunt-diff'
 
   plan:
@@ -104,11 +104,12 @@ jobs:
           done
 
       - name: Plan
+        id: tg-plan
         uses: gruntwork-io/terragrunt-action@v2
         with:
-          tofu_version: ${{ env.tofu_version }}
-          tg_version: ${{ env.tg_version }}
-          tg_dir: ${{ env.working_dir }}
+          tofu_version: ${{ inputs.terraform_version }}
+          tg_version: ${{ inputs.terragrunt_version }}
+          tg_dir: ${{ inputs.working_dir }}
           tg_command: 'plan'
 
       - name: Post Plan Comment
@@ -194,7 +195,7 @@ jobs:
       - name: Deploy
         uses: gruntwork-io/terragrunt-action@v2
         with:
-          tofu_version: ${{ env.tofu_version }}
-          tg_version: ${{ env.tg_version }}
-          tg_dir: ${{ env.working_dir }}
+          tofu_version: ${{ inputs.terraform_version }}
+          tg_version: ${{ inputs.terragrunt_version }}
+          tg_dir: ${{ inputs.working_dir }}
           tg_command: 'apply'
