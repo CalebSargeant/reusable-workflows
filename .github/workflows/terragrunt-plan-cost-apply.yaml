@@ -95,6 +95,14 @@ jobs:
             echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> $GITHUB_ENV
           fi
 
+          # For SOPS
+          if [[ -n "${{ secrets.SOPS_AGE_KEY }}" ]]; then
+            mkdir -p ~/.config/sops/age
+            echo "${{ secrets.SOPS_AGE_KEY }}" > ~/.config/sops/age/keys.txt
+            chmod 600 ~/.config/sops/age/keys.txt
+            echo "SOPS_AGE_KEY=${{ secrets.SOPS_AGE_KEY }}" >> $GITHUB_ENV
+          fi
+
       - name: Plan
         id: tg-plan
         uses: gruntwork-io/terragrunt-action@v2
@@ -156,6 +164,14 @@ jobs:
           # For Infracost
           if [[ -n "${{ secrets.INFRACOST_API_KEY }}" ]]; then
             echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> $GITHUB_ENV
+          fi
+
+          # For SOPS
+          if [[ -n "${{ secrets.SOPS_AGE_KEY }}" ]]; then
+            mkdir -p ~/.config/sops/age
+            echo "${{ secrets.SOPS_AGE_KEY }}" > ~/.config/sops/age/keys.txt
+            chmod 600 ~/.config/sops/age/keys.txt
+            echo "SOPS_AGE_KEY=${{ secrets.SOPS_AGE_KEY }}" >> $GITHUB_ENV
           fi
 
       - name: Apply
