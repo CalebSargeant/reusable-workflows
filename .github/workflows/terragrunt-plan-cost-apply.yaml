@@ -104,7 +104,6 @@ jobs:
             echo "${{ secrets.SOPS_AGE_KEY }}" > $(pwd)/sops/age/keys.txt
             chmod 600 $(pwd)/sops/age/keys.txt
             echo "SOPS_AGE_KEY_FILE=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
-            echo "TF_VAR_sops_path=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
             echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
           fi
 
@@ -177,7 +176,6 @@ jobs:
             echo "${{ secrets.SOPS_AGE_KEY }}" > $(pwd)/sops/age/keys.txt
             chmod 600 $(pwd)/sops/age/keys.txt
             echo "SOPS_AGE_KEY_FILE=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
-            echo "TF_VAR_sops_path=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
             echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
           fi
 
