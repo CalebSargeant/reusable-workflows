@@ -11,7 +11,7 @@ on:
         type: string
         description: Directory where Terragrunt commands will be executed
         required: false
-        default: ./terraform/aws/${{ inputs.environment }}
+        default: ./terraform/aws/dev
       terraform_version:
         type: string
         description: Terraform version to use
@@ -66,7 +66,7 @@ jobs:
       - name: Check terragrunt HCL
         uses: gruntwork-io/terragrunt-action@v2
         with:
-          tofu_version: ${{ inputs.terraform_version }}
+          tf_version: ${{ inputs.terraform_version }}
           tg_version: ${{ inputs.terragrunt_version }}
           tg_dir: ${{ inputs.working_dir }}
           tg_command: 'hclfmt --terragrunt-check --terragrunt-diff'
@@ -85,7 +85,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.aws_region }}
 
-      - name: Export AWS Environment Variables
+      - name: Inject GitHub Secrets & Variables into Terraform
         run: |
           # For AWS credentials
           echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
@@ -99,29 +99,12 @@ jobs:
         id: tg-plan
         uses: gruntwork-io/terragrunt-action@v2
         with:
-          tofu_version: ${{ inputs.terraform_version }}
+          tf_version: ${{ inputs.terraform_version }}
           tg_version: ${{ inputs.terragrunt_version }}
           tg_dir: ${{ inputs.working_dir }}
-          tg_command: 'plan'
-
-      - name: Post Plan Comment
-        if: ${{ inputs.enable_comments == true && github.event_name == 'pull_request' }}
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terragrunt Plan 📖
-            \`\`\`
-            ${{ steps.tg-plan.outputs.stdout }}
-            \`\`\`
-            `;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            });
+          tg_comment: ${{ inputs.enable_comments }}
+          tg_add_approve: ${{ inputs.auto_approve }}
+          tg_command: 'run-all plan'
 
   cost:
     runs-on: ubuntu-latest
