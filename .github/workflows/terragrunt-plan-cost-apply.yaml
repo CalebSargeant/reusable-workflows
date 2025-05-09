@@ -49,6 +49,9 @@ on:
       INFRACOST_API_KEY:
         description: 'Infracost API key'
         required: false
+      SOPS_AGE_KEY:
+        description: 'SOPS Age Key'
+        required: false
 
 permissions:
   id-token: write
