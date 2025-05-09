@@ -3,6 +3,11 @@ name: Terragrunt Plan/Cost/Apply
 on:
   workflow_call:
     inputs:
+      runner:
+        type: string
+        description: 'The self-hosted runner label to use (staging or prod)'
+        default: ubuntu-latest
+        required: false
       environment:
         type: string
         description: Github Environment to deploy to (for AWS credentials)
@@ -75,7 +80,7 @@ jobs:
           tg_command: 'hclfmt --terragrunt-check --terragrunt-diff'
 
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: [ checks ]
     environment: ${{ inputs.environment }}
     steps:
@@ -119,7 +124,7 @@ jobs:
           tg_command: 'run-all plan'
 
   cost:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: [ plan ]
     environment: ${{ inputs.environment }}
     steps:
@@ -146,7 +151,7 @@ jobs:
           terraform-workspace: ${{ inputs.environment }}
 
   apply:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: [ plan ]
     environment: ${{ inputs.environment }}
     if: github.ref == 'refs/heads/main'
