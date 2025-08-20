@@ -39,7 +39,7 @@ jobs:
             echo "Error: OPENAI_API_KEY secret is not configured"
             exit 1
           fi
-      - uses: presubmit/ai-reviewer@v0.1.7
+      - uses: presubmit/ai-reviewer@v0.2.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LLM_API_KEY: ${{ secrets.OPENAI_API_KEY }}
