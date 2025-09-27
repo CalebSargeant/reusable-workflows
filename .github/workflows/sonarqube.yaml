@@ -1,12 +1,22 @@
-name: Build
+name: SonarQube
 on:
   push:
     branches:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        description: 'SonarQube token for authentication'
+        required: true
+  workflow_dispatch:
+
+permissions:
+  pull-requests: read
+
 jobs:
-  sonarqube:
+  analysis:
     name: SonarQube
     runs-on: ubuntu-latest
     steps:
@@ -17,3 +27,4 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
