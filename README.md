@@ -15,6 +15,66 @@
 
 This repository contains reusable GitHub Actions workflows that can be called from other repositories.
 
+## Slack Pull Request Events Workflow
+
+A reusable workflow for sending Slack notifications on pull request events including opened PRs, reviewer mentions, and approval/decline reactions.
+
+### Features
+
+- Notifications when PRs are opened with link to the PR
+- Automatic @mentions for requested reviewers in Slack
+- ✅ emoji reaction when PRs are approved
+- ❌ emoji reaction when PRs are declined/rejected
+- Configurable Slack channel
+- Simple setup using marketplace actions
+
+### Usage
+
+To use this workflow in your repository, create a workflow file like this:
+
+```yaml
+name: Slack PR Notifications
+
+on:
+  pull_request:
+    types: [opened, review_requested]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  notify_slack:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/slack-pr-events.yaml@main
+    with:
+      slack_channel_id: "C1234567890"  # Your Slack channel ID
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+```
+
+### Inputs
+
+| Name | Description | Required | Default |
+|------|-------------|----------|---------|
+| `slack_channel_id` | The Slack channel ID to post notifications to | Yes | - |
+
+### Secrets
+
+| Name | Description | Required |
+|------|-------------|----------|
+| `SLACK_BOT_TOKEN` | Slack Bot token for authentication | Yes |
+
+### Slack Setup
+
+To use this workflow, you need to create a Slack bot:
+
+1. Go to [api.slack.com](https://api.slack.com/apps) and create a new app
+2. Navigate to "OAuth & Permissions" and add the following scopes:
+   - `chat:write` (to post messages)
+   - `reactions:write` (to add emoji reactions)
+   - `channels:read` (to access channel information)
+3. Install the app to your workspace
+4. Copy the Bot User OAuth Token and store it as `SLACK_BOT_TOKEN` secret in your GitHub repository
+5. Find your channel ID by right-clicking on the channel in Slack and selecting "Copy link" - the ID is the last part of the URL
+
 ## Terragrunt Plan/Apply Workflow
 
 A reusable workflow for running Terragrunt plan and apply operations with AWS authentication.
