@@ -1,4 +1,3 @@
----
 name: Slack Pull Request Events
 
 "on":
