@@ -1,6 +1,6 @@
 name: Slack Pull Request Events
 
-"on":
+on:
   pull_request:
     types: [opened, review_requested, review_request_removed]
   pull_request_review:
