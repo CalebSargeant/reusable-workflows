@@ -1,33 +1,11 @@
+---
 name: Slack Pull Request Events
 
-on:
+"on":
   pull_request:
-    types:
-      [
-        assigned,
-        unassigned,
-        labeled,
-        unlabeled,
-        opened,
-        edited,
-        closed,
-        reopened,
-        synchronize,
-        converted_to_draft,
-        ready_for_review,
-        locked,
-        unlocked,
-        review_requested,
-        review_request_removed,
-        auto_merge_enabled,
-        auto_merge_disabled
-      ]
+    types: [opened, review_requested, review_request_removed]
   pull_request_review:
-    types: [submitted, edited, dismissed]
-  pull_request_review_comment:
-    types: [created, edited, deleted]
-  issue_comment:
-    types: [created, edited, deleted]
+    types: [submitted]
   workflow_call:
     inputs:
       slack_channel_id:
@@ -40,14 +18,14 @@ on:
         required: true
 
 jobs:
-  pull_request_workflow:
+  slack_notification:
     runs-on: ubuntu-latest
-    name: A job that notifies slack on PR events
+    name: Send Slack PR notifications
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run pull request workflow
+      - name: Send Slack notification
         uses: cakarci/pull-request-workflow@v1.11.5
         with:
           github-token: ${{ github.token }}
