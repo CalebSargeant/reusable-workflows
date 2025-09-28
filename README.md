@@ -6,6 +6,7 @@
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Known Vulnerabilities](https://snyk.io/test/github/CalebSargeant/reusable-workflows/badge.svg)](https://snyk.io/test/github/CalebSargeant/reusable-workflows)
 
 [//]: # ([![License: MIT]&#40;https://img.shields.io/badge/License-MIT-yellow.svg&#41;]&#40;LICENSE&#41;)
 [//]: # ([![GitHub release]&#40;https://img.shields.io/github/v/release/CalebSargeant/reusable-workflows&#41;]&#40;https://github.com/CalebSargeant/reusable-workflows/releases&#41;)
