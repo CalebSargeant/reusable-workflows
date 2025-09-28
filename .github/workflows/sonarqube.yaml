@@ -6,6 +6,15 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_call:
+    inputs:
+      sonar_project_key:
+        description: 'SonarQube project key'
+        required: false
+        type: string
+      sonar_organization:
+        description: 'SonarQube organization'
+        required: false
+        type: string
     secrets:
       SONAR_TOKEN:
         description: 'SonarQube token for authentication'
@@ -28,3 +37,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectBaseDir: .
+          args: >
+            ${{ inputs.sonar_project_key && format('-Dsonar.projectKey={0}', inputs.sonar_project_key) || '' }}
+            ${{ inputs.sonar_organization && format('-Dsonar.organization={0}', inputs.sonar_organization) || '' }}
