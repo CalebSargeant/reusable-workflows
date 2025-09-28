@@ -121,7 +121,7 @@ jobs:
           tf_version: ${{ inputs.terraform_version }}
           tg_version: ${{ inputs.terragrunt_version }}
           tg_dir: ${{ inputs.working_dir }}
-          tg_comment: ${{ inputs.enable_comments && github.event_name == 'pull_request' }}
+          tg_comment: ${{ inputs.enable_comments == true && github.event_name == 'pull_request' }}
           tg_add_approve: false  # We'll handle approval separately
           tg_command: 'run-all plan'
 
