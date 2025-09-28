@@ -5,48 +5,48 @@ on:
     inputs:
       runner:
         type: string
-        description: 'The self-hosted runner label to use (staging or prod)'
+        description: 'The runner to use for the job'
         default: ubuntu-latest
         required: false
       environment:
         type: string
-        description: Github Environment to deploy to (for AWS credentials)
+        description: 'GitHub Environment to deploy to (for AWS credentials)'
         required: true
       working_dir:
         type: string
-        description: Directory where Terragrunt commands will be executed
+        description: 'Directory where Terragrunt commands will be executed'
         required: false
-        default: ./terraform/aws/dev
+        default: './terraform'
       terraform_version:
         type: string
-        description: Terraform version to use
+        description: 'Terraform version to use'
         required: false
-        default: latest
+        default: 'latest'
       terragrunt_version:
         type: string
-        description: Terragrunt version to use
+        description: 'Terragrunt version to use'
         required: false
-        default: latest
+        default: 'latest'
       aws_region:
         type: string
-        description: AWS region to use
+        description: 'AWS region to use'
         required: false
-        default: af-south-1
+        default: 'us-east-1'
       enable_comments:
         type: boolean
-        description: Enable PR comments for plan output
-        required: false
-        default: true
-      auto_approve:
-        type: boolean
-        description: Auto approve apply (only for main/master branch)
+        description: 'Enable PR comments for plan output'
         required: false
         default: true
       enable_infracost:
         type: boolean
-        description: Enable Infracost cost estimation
+        description: 'Enable Infracost cost estimation'
         required: false
         default: true
+      auto_approve:
+        type: boolean
+        description: 'Auto approve apply (only for main/master branch)'
+        required: false
+        default: false
     secrets:
       AWS_ROLE_TO_ASSUME:
         description: 'AWS IAM role ARN to assume'
@@ -65,13 +65,14 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Pre-flight checks
   checks:
     runs-on: ${{ inputs.runner }}
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
-      - name: Check terragrunt HCL
+      - name: 'Check Terragrunt HCL formatting'
         uses: gruntwork-io/terragrunt-action@v2
         with:
           tf_version: ${{ inputs.terraform_version }}
@@ -79,21 +80,22 @@ jobs:
           tg_dir: ${{ inputs.working_dir }}
           tg_command: 'hclfmt --terragrunt-check --terragrunt-diff'
 
+  # Plan step - always runs
   plan:
     runs-on: ${{ inputs.runner }}
-    needs: [ checks ]
+    needs: [checks]
     environment: ${{ inputs.environment }}
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      - name: 'Configure AWS Credentials'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.aws_region }}
 
-      - name: Inject GitHub Secrets & Variables into Terraform
+      - name: 'Setup environment variables'
         run: |
           # For AWS credentials
           echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
@@ -112,60 +114,69 @@ jobs:
             echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
           fi
 
-      - name: Plan
+      - name: 'Run Terragrunt Plan'
         id: tg-plan
         uses: gruntwork-io/terragrunt-action@v2
         with:
           tf_version: ${{ inputs.terraform_version }}
           tg_version: ${{ inputs.terragrunt_version }}
           tg_dir: ${{ inputs.working_dir }}
-          tg_comment: ${{ inputs.enable_comments }}
-          tg_add_approve: ${{ inputs.auto_approve }}
+          tg_comment: ${{ inputs.enable_comments == true && github.event_name == 'pull_request' }}
+          tg_add_approve: false  # We'll handle approval separately
           tg_command: 'run-all plan'
 
+  # Cost estimation - only runs on PRs when enabled
   cost:
     runs-on: ${{ inputs.runner }}
-    needs: [ plan ]
+    needs: [plan]
     environment: ${{ inputs.environment }}
+    if: ${{ inputs.enable_infracost == true && github.event_name == 'pull_request' }}
     steps:
-      - name: Setup Infracost
-        if: ${{ inputs.enable_infracost == true && github.event_name == 'pull_request' }}
-        uses: infracost/actions/setup@v2
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+
+      - name: 'Configure AWS Credentials'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: 'Setup Infracost'
+        uses: infracost/actions/setup@v3
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
-      - name: Generate Infracost JSON
-        if: ${{ inputs.enable_infracost == true && github.event_name == 'pull_request' }}
+      - name: 'Generate Infracost JSON'
         id: infracost
         run: |
           cd ${{ inputs.working_dir }}
           # Generate Infracost JSON directly from Terragrunt code
           infracost breakdown --path . --terraform-parse-hcl --format json --out-file infracost.json
 
-      - name: Post Infracost Comment
-        if: ${{ inputs.enable_infracost == true && github.event_name == 'pull_request' }}
-        uses: infracost/actions/comment@v2
+      - name: 'Post Infracost Comment'
+        uses: infracost/actions/comment@v3
         with:
           path: ${{ inputs.working_dir }}/infracost.json
           behavior: update
           terraform-workspace: ${{ inputs.environment }}
 
+  # Apply - only runs on main/master branch pushes
   apply:
     runs-on: ${{ inputs.runner }}
-    needs: [ plan ]
+    needs: [plan]
     environment: ${{ inputs.environment }}
-    if: github.ref == 'refs/heads/main'
+    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push' }}
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      - name: 'Configure AWS Credentials'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ inputs.aws_region }}
 
-      - name: Inject GitHub Secrets & Variables into Terraform
+      - name: 'Setup environment variables'
         run: |
           # For AWS credentials
           echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
@@ -184,12 +195,12 @@ jobs:
             echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
           fi
 
-      - name: Apply
+      - name: 'Run Terragrunt Apply'
         uses: gruntwork-io/terragrunt-action@v2
         with:
           tf_version: ${{ inputs.terraform_version }}
           tg_version: ${{ inputs.terragrunt_version }}
           tg_dir: ${{ inputs.working_dir }}
-          tg_comment: ${{ inputs.enable_comments }}
+          tg_comment: false  # No comments needed for apply
           tg_add_approve: ${{ inputs.auto_approve }}
           tg_command: 'run-all apply'

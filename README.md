@@ -105,7 +105,7 @@ on:
 
 jobs:
   deploy:
-    uses: your-org/workflows/.github/workflows/terragrunt-plan-apply.yaml@main
+    uses: CalebSargeant/reusable-workflows/.github/workflows/terragrunt-plan-cost-apply.yaml@main
     with:
       environment: production
       working_dir: ./terraform
@@ -114,11 +114,16 @@ jobs:
       aws_region: us-east-1
       enable_comments: true
       enable_infracost: true
-      auto_approve: ${{ github.ref == 'refs/heads/main' }}
+      auto_approve: false
     secrets:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
 ```
+
+**How it works:**
+- For **Pull Requests**: Runs plan, posts plan output as PR comment, and shows cost estimation via Infracost
+- For **main/master pushes**: Runs plan and then applies the changes (deployment)
+- Automatically detects the context and behaves appropriately
 
 ### Inputs
 
