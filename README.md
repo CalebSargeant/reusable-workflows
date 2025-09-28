@@ -125,6 +125,12 @@ on:
     paths:
       - 'terraform/**'
 
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   deploy:
     strategy:
@@ -197,6 +203,12 @@ on:
       - main
       - develop
       - staging
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   # Detect which environments have changes
@@ -300,6 +312,7 @@ jobs:
 - Environment-specific secrets are referenced using the `environment_secret` matrix parameter (e.g., `DEV_AWS_ROLE_ARN`, `STAGING_AWS_ROLE_ARN`, `PROD_AWS_ROLE_ARN`)
 - The conditional `if` statement ensures workflows only run for the appropriate branch
 - This approach requires creating GitHub Environment for each deployment target (dev, staging, prod)
+- **Required Permissions**: The caller workflow must include the permissions block to grant access for OIDC authentication, PR comments, and issue updates
 
 **Path Filtering Benefits:**
 - **Efficiency**: Only deploys environments that actually have changes
@@ -312,6 +325,12 @@ jobs:
 - Shared module changes (`terraform/_modules/**`, `terraform/aws/_modules/**`) trigger all environments
 - Workflow file changes trigger a "shared" output for maintenance purposes
 - Customize the path patterns based on your repository structure
+
+**Required Permissions Explained:**
+- `id-token: write` - Required for OIDC authentication with AWS (allows GitHub to assume AWS IAM roles)
+- `contents: read` - Required to check out the repository code
+- `issues: write` - Required for posting issue comments (used by some Terraform actions)
+- `pull-requests: write` - Required for posting plan output as PR comments and Infracost cost estimates
 
 #### Single-Environment Approach
 
@@ -332,6 +351,12 @@ on:
       - main
     paths:
       - 'terraform/**'
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   deploy:
