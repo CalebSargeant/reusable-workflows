@@ -85,8 +85,6 @@ jobs:
     runs-on: ${{ inputs.runner }}
     needs: [checks]
     environment: ${{ inputs.environment }}
-    outputs:
-      plan-output: ${{ steps.tg-plan.outputs.tg-output }}
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
