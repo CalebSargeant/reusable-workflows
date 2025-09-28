@@ -89,38 +89,273 @@ A reusable workflow for running Terragrunt plan and apply operations with AWS au
 - Conditional apply based on branch and approval
 - Environment variable handling for Terraform variables
 - Simplified setup and execution
+- Support for both single and multi-environment deployments
 
 ### Usage
 
-To use this workflow in your repository, create a workflow file like this:
+This workflow can be used in two primary configurations:
+1. **Multi-Environment Approach** - For managing dev/staging/prod environments with branch-based deployments
+2. **Single-Environment Approach** - For simpler setups with a single target environment
+
+#### Multi-Environment Approach (Dev/Staging/Prod)
+
+This approach uses a matrix strategy to define multiple environments with intelligent path filtering to only run deployments when relevant files change.
+
+##### Basic Multi-Environment Setup
+
+For simpler setups where you want all environments to run when any terraform changes occur:
 
 ```yaml
-name: Infrastructure Deployment
+name: Deploy Infrastructure - Multi Environment (Basic)
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - develop
+      - staging
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/**'
   pull_request:
-    branches: [main, master]
+    branches:
+      - main
+      - develop
+      - staging
+    paths:
+      - 'terraform/**'
+
+jobs:
+  deploy:
+    strategy:
+      matrix:
+        include:
+          # Development environment
+          - environment: dev
+            environment_secret: DEV_AWS_ROLE_ARN
+            branch: develop
+            working_dir: './terraform/environments/dev'
+            aws_region: 'us-west-2'
+            enable_comments: true
+            enable_infracost: true
+            auto_approve: false
+            
+          # Staging environment
+          - environment: staging
+            environment_secret: STAGING_AWS_ROLE_ARN
+            branch: staging
+            working_dir: './terraform/environments/staging'
+            aws_region: 'us-west-2'
+            enable_comments: true
+            enable_infracost: true
+            auto_approve: false
+            
+          # Production environment
+          - environment: prod
+            environment_secret: PROD_AWS_ROLE_ARN
+            branch: main
+            working_dir: './terraform/environments/prod'
+            aws_region: 'us-east-1'
+            enable_comments: false
+            enable_infracost: true
+            auto_approve: true
+            
+    # Only run for the matching branch or PRs targeting that branch
+    if: |
+      (github.ref == format('refs/heads/{0}', matrix.branch)) ||
+      (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
+    
+    uses: CalebSargeant/reusable-workflows/.github/workflows/terragrunt-plan-cost-apply.yaml@main
+    with:
+      environment: ${{ matrix.environment }}
+      working_dir: ${{ matrix.working_dir }}
+      aws_region: ${{ matrix.aws_region }}
+      enable_comments: ${{ matrix.enable_comments }}
+      enable_infracost: ${{ matrix.enable_infracost }}
+      auto_approve: ${{ matrix.auto_approve }}
+    secrets:
+      AWS_ROLE_TO_ASSUME: ${{ secrets[matrix.environment_secret] }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+```
+
+##### Advanced Multi-Environment with Path Filtering
+
+For more efficient deployments that only run when specific environment directories or shared modules change:
+
+```yaml
+name: Deploy Infrastructure - Multi Environment (Path Filtered)
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - staging
+  pull_request:
+    branches:
+      - main
+      - develop
+      - staging
+
+jobs:
+  # Detect which environments have changes
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dev: ${{ steps.filter.outputs.dev }}
+      staging: ${{ steps.filter.outputs.staging }}
+      prod: ${{ steps.filter.outputs.prod }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Check for changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            dev:
+              - 'terraform/environments/dev/**'
+              - 'terraform/_modules/**'
+              - 'terraform/aws/_modules/**'
+            staging:
+              - 'terraform/environments/staging/**'
+              - 'terraform/_modules/**'
+              - 'terraform/aws/_modules/**'
+            prod:
+              - 'terraform/environments/prod/**'
+              - 'terraform/_modules/**'
+              - 'terraform/aws/_modules/**'
+            shared:
+              - 'terraform/_modules/**'
+              - 'terraform/aws/_modules/**'
+              - '.github/workflows/terragrunt-infrastructure.yaml'
+
+  deploy:
+    needs: changes
+    strategy:
+      matrix:
+        include:
+          # Development environment
+          - environment: dev
+            environment_secret: DEV_AWS_ROLE_ARN
+            branch: develop
+            working_dir: './terraform/environments/dev'
+            aws_region: 'us-west-2'
+            enable_comments: true
+            enable_infracost: true
+            auto_approve: false
+            run_condition: ${{ needs.changes.outputs.dev == 'true' }}
+            
+          # Staging environment
+          - environment: staging
+            environment_secret: STAGING_AWS_ROLE_ARN
+            branch: staging
+            working_dir: './terraform/environments/staging'
+            aws_region: 'us-west-2'
+            enable_comments: true
+            enable_infracost: true
+            auto_approve: false
+            run_condition: ${{ needs.changes.outputs.staging == 'true' }}
+            
+          # Production environment
+          - environment: prod
+            environment_secret: PROD_AWS_ROLE_ARN
+            branch: main
+            working_dir: './terraform/environments/prod'
+            aws_region: 'us-east-1'
+            enable_comments: false
+            enable_infracost: true
+            auto_approve: true
+            run_condition: ${{ needs.changes.outputs.prod == 'true' }}
+            
+    # Only run for the matching branch/PR AND if there are relevant changes
+    if: |
+      matrix.run_condition == 'true' && (
+        (github.ref == format('refs/heads/{0}', matrix.branch)) ||
+        (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
+      )
+    
+    uses: CalebSargeant/reusable-workflows/.github/workflows/terragrunt-plan-cost-apply.yaml@main
+    with:
+      environment: ${{ matrix.environment }}
+      working_dir: ${{ matrix.working_dir }}
+      aws_region: ${{ matrix.aws_region }}
+      enable_comments: ${{ matrix.enable_comments }}
+      enable_infracost: ${{ matrix.enable_infracost }}
+      auto_approve: ${{ matrix.auto_approve }}
+    secrets:
+      AWS_ROLE_TO_ASSUME: ${{ secrets[matrix.environment_secret] }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+```
+
+**Multi-Environment Setup Notes:**
+- **Basic Setup**: All environments run when any terraform files change - simpler but less efficient
+- **Path Filtered Setup**: Only runs environments when their specific directories or shared modules change - more efficient for large projects
+- Each environment is defined in the matrix with a specific branch trigger
+- Environment-specific secrets are referenced using the `environment_secret` matrix parameter (e.g., `DEV_AWS_ROLE_ARN`, `STAGING_AWS_ROLE_ARN`, `PROD_AWS_ROLE_ARN`)
+- The conditional `if` statement ensures workflows only run for the appropriate branch
+- This approach requires creating GitHub Environment for each deployment target (dev, staging, prod)
+
+**Path Filtering Benefits:**
+- **Efficiency**: Only deploys environments that actually have changes
+- **Cost Savings**: Reduces unnecessary workflow runs and AWS API calls
+- **Faster Feedback**: Shorter CI/CD times when only specific environments need updates
+- **Clarity**: PR comments and logs only show relevant environment changes
+
+**Path Filter Configuration:**
+- Each environment filter includes its specific directory (`terraform/environments/{env}/**`)
+- Shared module changes (`terraform/_modules/**`, `terraform/aws/_modules/**`) trigger all environments
+- Workflow file changes trigger a "shared" output for maintenance purposes
+- Customize the path patterns based on your repository structure
+
+#### Single-Environment Approach
+
+For simpler projects or when you're just getting started, you can use a single environment approach:
+
+```yaml
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
 
 jobs:
   deploy:
     uses: CalebSargeant/reusable-workflows/.github/workflows/terragrunt-plan-cost-apply.yaml@main
     with:
-      environment: production
-      working_dir: ./terraform
-      terraform_version: 1.5.7
-      terragrunt_version: 0.45.0
-      aws_region: us-east-1
+      environment: 'production'
+      working_dir: './terraform'
+      aws_region: 'us-east-1'
       enable_comments: true
       enable_infracost: true
-      auto_approve: false
+      auto_approve: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     secrets:
-      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN }}
       INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
 ```
 
-**How it works:**
+**Single-Environment Setup Notes:**
+- Much simpler configuration with no matrix or conditionals
+- Only triggers on main branch changes
+- Auto-approve is determined by a simple expression checking if this is a push to the main branch
+- Only requires a single GitHub Environment setup
+
+### How It Works
+
 - For **Pull Requests**: Runs plan, posts plan output as PR comment, and shows cost estimation via Infracost
 - For **main/master pushes**: Runs plan and then applies the changes (deployment)
 - Automatically detects the context and behaves appropriately
@@ -129,6 +364,7 @@ jobs:
 
 | Name | Description | Required | Default |
 |------|-------------|----------|---------|
+| `runner` | The runner to use for the job | No | `ubuntu-latest` |
 | `environment` | GitHub Environment to deploy to (for AWS credentials) | Yes | - |
 | `working_dir` | Directory where Terragrunt commands will be executed | No | `./terraform` |
 | `terraform_version` | Terraform version to use | No | `latest` |
@@ -144,6 +380,7 @@ jobs:
 |------|-------------|----------|
 | `AWS_ROLE_TO_ASSUME` | AWS IAM role ARN to assume | Yes |
 | `INFRACOST_API_KEY` | API key for Infracost cost estimation | No |
+| `SOPS_AGE_KEY` | SOPS Age key for decrypting secrets | No |
 
 ### AWS Setup
 
@@ -187,3 +424,18 @@ To use the Infracost integration for cloud cost estimation:
 4. Enable Infracost in your workflow by setting `enable_infracost: true`
 
 When enabled, Infracost will analyze your Terragrunt/Terraform code and provide cost estimates as comments on your pull requests.
+
+### SOPS Setup (Optional)
+
+If your Terraform/Terragrunt configuration uses SOPS for managing encrypted secrets:
+
+1. Generate an Age key pair:
+   ```bash
+   age-keygen -o key.txt
+   ```
+2. Store the private key as the `SOPS_AGE_KEY` secret in your GitHub repository
+3. The workflow will automatically set up the SOPS environment variables and Age key file during execution
+
+The workflow sets these environment variables when `SOPS_AGE_KEY` is provided:
+- `SOPS_AGE_KEY_FILE` - Path to the Age key file
+- `TF_VAR_sops_age_key_file` - Terraform variable for the Age key file path
