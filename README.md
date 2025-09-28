@@ -247,7 +247,6 @@ jobs:
             enable_comments: true
             enable_infracost: true
             auto_approve: false
-            run_condition: ${{ needs.changes.outputs.dev == 'true' }}
             
           # Staging environment
           - environment: staging
@@ -258,7 +257,6 @@ jobs:
             enable_comments: true
             enable_infracost: true
             auto_approve: false
-            run_condition: ${{ needs.changes.outputs.staging == 'true' }}
             
           # Production environment
           - environment: prod
@@ -269,11 +267,14 @@ jobs:
             enable_comments: false
             enable_infracost: true
             auto_approve: true
-            run_condition: ${{ needs.changes.outputs.prod == 'true' }}
             
     # Only run for the matching branch/PR AND if there are relevant changes
     if: |
-      matrix.run_condition == 'true' && (
+      (
+        (matrix.environment == 'dev' && needs.changes.outputs.dev == 'true') ||
+        (matrix.environment == 'staging' && needs.changes.outputs.staging == 'true') ||
+        (matrix.environment == 'prod' && needs.changes.outputs.prod == 'true')
+      ) && (
         (github.ref == format('refs/heads/{0}', matrix.branch)) ||
         (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
       )

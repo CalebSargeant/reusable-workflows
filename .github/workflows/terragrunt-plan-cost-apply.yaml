@@ -98,20 +98,20 @@ jobs:
       - name: 'Setup environment variables'
         run: |
           # For AWS credentials
-          echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+          echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> "$GITHUB_ENV"
           
           # For Infracost
           if [[ -n "${{ secrets.INFRACOST_API_KEY }}" ]]; then
-            echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> $GITHUB_ENV
+            echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> "$GITHUB_ENV"
           fi
 
           # For SOPS
           if [[ -n "${{ secrets.SOPS_AGE_KEY }}" ]]; then
-            mkdir -p $(pwd)/sops/age
-            echo "${{ secrets.SOPS_AGE_KEY }}" > $(pwd)/sops/age/keys.txt
-            chmod 600 $(pwd)/sops/age/keys.txt
-            echo "SOPS_AGE_KEY_FILE=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
-            echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
+            mkdir -p "$(pwd)/sops/age"
+            echo "${{ secrets.SOPS_AGE_KEY }}" > "$(pwd)/sops/age/keys.txt"
+            chmod 600 "$(pwd)/sops/age/keys.txt"
+            echo "SOPS_AGE_KEY_FILE=$(pwd)/sops/age/keys.txt" >> "$GITHUB_ENV"
+            echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> "$GITHUB_ENV"
           fi
 
       - name: 'Run Terragrunt Plan'
@@ -179,20 +179,20 @@ jobs:
       - name: 'Setup environment variables'
         run: |
           # For AWS credentials
-          echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+          echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> "$GITHUB_ENV"
           
           # For Infracost
           if [[ -n "${{ secrets.INFRACOST_API_KEY }}" ]]; then
-            echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> $GITHUB_ENV
+            echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> "$GITHUB_ENV"
           fi
 
           # For SOPS
           if [[ -n "${{ secrets.SOPS_AGE_KEY }}" ]]; then
-            mkdir -p $(pwd)/sops/age
-            echo "${{ secrets.SOPS_AGE_KEY }}" > $(pwd)/sops/age/keys.txt
-            chmod 600 $(pwd)/sops/age/keys.txt
-            echo "SOPS_AGE_KEY_FILE=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
-            echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> $GITHUB_ENV
+            mkdir -p "$(pwd)/sops/age"
+            echo "${{ secrets.SOPS_AGE_KEY }}" > "$(pwd)/sops/age/keys.txt"
+            chmod 600 "$(pwd)/sops/age/keys.txt"
+            echo "SOPS_AGE_KEY_FILE=$(pwd)/sops/age/keys.txt" >> "$GITHUB_ENV"
+            echo "TF_VAR_sops_age_key_file=$(pwd)/sops/age/keys.txt" >> "$GITHUB_ENV"
           fi
 
       - name: 'Run Terragrunt Apply'
