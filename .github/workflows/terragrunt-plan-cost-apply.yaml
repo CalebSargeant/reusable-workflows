@@ -78,7 +78,7 @@ jobs:
           tf_version: ${{ inputs.terraform_version }}
           tg_version: ${{ inputs.terragrunt_version }}
           tg_dir: ${{ inputs.working_dir }}
-          tg_command: 'hclfmt --terragrunt-check --terragrunt-diff'
+          tg_command: 'hcl format --check --diff'
 
   # Plan step - always runs
   plan:
