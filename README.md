@@ -1,16 +1,23 @@
-
+<!-- Quality & Security Overview -->
 [![CodeQL](https://github.com/CalebSargeant/reusable-workflows/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/CalebSargeant/reusable-workflows/actions/workflows/github-code-scanning/codeql)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=coverage)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
-[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
-[![Known Vulnerabilities](https://snyk.io/test/github/CalebSargeant/reusable-workflows/badge.svg)](https://snyk.io/test/github/CalebSargeant/reusable-workflows)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=alert_status&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=security_rating&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Known Vulnerabilities](https://snyk.io/test/github/calebsargeant/reusable-workflows/badge.svg)](https://snyk.io/test/github/calebsargeant/reusable-workflows)
 
-[//]: # ([![License: MIT]&#40;https://img.shields.io/badge/License-MIT-yellow.svg&#41;]&#40;LICENSE&#41;)
-[//]: # ([![GitHub release]&#40;https://img.shields.io/github/v/release/CalebSargeant/reusable-workflows&#41;]&#40;https://github.com/CalebSargeant/reusable-workflows/releases&#41;)
-[//]: # ([![Build]&#40;https://github.com/CalebSargeant/reusable-workflows/actions/workflows/ci.yaml/badge.svg&#41;]&#40;https://github.com/CalebSargeant/reusable-workflows/actions/workflows/ci.yml&#41;)
+<!-- Code Quality & Maintainability -->
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=sqale_rating&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=reliability_rating&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=sqale_index&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+
+<!-- Code Metrics -->
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=coverage&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=bugs&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=vulnerabilities&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=code_smells&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+
+<!-- Project Stats -->
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=ncloc&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=CalebSargeant_reusable-workflows&metric=duplicated_lines_density&token=ebfb6b12c8469925ada2be9a1af34b9679e55d40)](https://sonarcloud.io/summary/new_code?id=CalebSargeant_reusable-workflows)
 
 # GitHub Reusable Workflows
 
