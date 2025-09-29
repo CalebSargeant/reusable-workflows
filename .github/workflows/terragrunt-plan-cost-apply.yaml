@@ -125,40 +125,42 @@ jobs:
           tg_add_approve: false  # We'll handle approval separately
           tg_command: 'run-all plan'
 
-  # Cost estimation - only runs on PRs when enabled
-  cost:
-    runs-on: ${{ inputs.runner }}
-    needs: [plan]
-    environment: ${{ inputs.environment }}
-    if: ${{ inputs.enable_infracost == true && github.event_name == 'pull_request' }}
-    steps:
-      - name: 'Checkout'
-        uses: actions/checkout@v4
-
-      - name: 'Configure AWS Credentials'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ inputs.aws_region }}
-
-      - name: 'Setup Infracost'
-        uses: infracost/actions/setup@v3
-        with:
-          api-key: ${{ secrets.INFRACOST_API_KEY }}
-
-      - name: 'Generate Infracost JSON'
-        id: infracost
-        run: |
-          cd ${{ inputs.working_dir }}
-          # Generate Infracost JSON directly from Terragrunt code
-          infracost breakdown --path . --terraform-parse-hcl --format json --out-file infracost.json
-
-      - name: 'Post Infracost Comment'
-        uses: infracost/actions/comment@v3
-        with:
-          path: ${{ inputs.working_dir }}/infracost.json
-          behavior: update
-          terraform-workspace: ${{ inputs.environment }}
+# Disabling InfraCost to see if we can get by with just using the InfraCost GitHub App
+#  # Cost estimation - only runs on PRs when enabled
+#  cost:
+#    runs-on: ${{ inputs.runner }}
+#    needs: [plan]
+#    environment: ${{ inputs.environment }}
+#    if: ${{ inputs.enable_infracost == true && github.event_name == 'pull_request' }}
+#    steps:
+#      - name: 'Checkout'
+#        uses: actions/checkout@v4
+#
+#      - name: 'Configure AWS Credentials'
+#        uses: aws-actions/configure-aws-credentials@v4
+#        with:
+#          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+#          aws-region: ${{ inputs.aws_region }}
+#
+#      - name: 'Setup Infracost'
+#        uses: infracost/actions/setup@v3
+#        with:
+#          api-key: ${{ secrets.INFRACOST_API_KEY }}
+#
+#      - name: 'Generate Infracost cost estimate'
+#        id: infracost
+#        run: |
+#          cd ${{ inputs.working_dir }}
+#          # Generate Infracost breakdown and post comment
+#          infracost breakdown --path . --terraform-parse-hcl --format json --out-file /tmp/infracost.json
+#
+#      - name: 'Post Infracost Comment'
+#        run: |
+#          infracost comment github --path=/tmp/infracost.json \
+#                                   --repo=$GITHUB_REPOSITORY \
+#                                   --github-token=${{ github.token }} \
+#                                   --pull-request=${{ github.event.pull_request.number }} \
+#                                   --behavior=update
 
   # Apply - only runs on main/master branch pushes
   apply:
