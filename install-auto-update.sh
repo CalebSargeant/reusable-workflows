@@ -327,7 +327,7 @@ send_notification() {
     "uptime": "$uptime",
     "packages_updated": "$packages_updated",
     "error_details": "$error_details",
-    "enable_reboot_button": $ENABLE_REBOOT_BUTTON
+    "enable_reboot_button": "$ENABLE_REBOOT_BUTTON"
   }
 }
 EOF
