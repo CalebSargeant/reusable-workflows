@@ -398,7 +398,7 @@ check_system_load() {
 detect_package_manager() {
     if command -v apt-get &> /dev/null; then
         UPDATE_CMD="apt-get update"
-        UPGRADE_CMD="apt-get -y --force-confold --auto-remove --purge upgrade"
+        UPGRADE_CMD="apt-get -y upgrade --auto-remove --purge"
         PKG_COUNT_CMD="grep -c '^Setting up\|^Unpacking'"
     elif command -v yum &> /dev/null; then
         UPDATE_CMD="yum check-update || true"
@@ -544,7 +544,21 @@ create_systemd_service() {
         return
     fi
 
-    cat > /etc/systemd/system/auto-update-slack.service << 'EOF'
+    # Determine appropriate ReadWritePaths based on OS
+    local readwrite_paths="/var/log /var/run /tmp"
+    case $PKG_MANAGER in
+        apt)
+            readwrite_paths+=" /var/lib/apt /var/cache/apt /etc/apt"
+            ;;
+        yum)
+            readwrite_paths+=" /var/lib/rpm /var/cache/yum"
+            ;;
+        pacman)
+            readwrite_paths+=" /var/cache/pacman /var/lib/pacman"
+            ;;
+    esac
+
+    cat > /etc/systemd/system/auto-update-slack.service << EOF
 [Unit]
 Description=Auto-update system with Slack notifications
 After=network-online.target
@@ -560,7 +574,7 @@ Group=root
 # Security settings
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/var/log /var/run /tmp /var/lib/apt /var/cache/apt /etc/apt /var/lib/rpm /var/cache/yum /var/cache/pacman
+ReadWritePaths=$readwrite_paths
 ProtectHome=true
 PrivateTmp=true
 ProtectKernelTunables=true
