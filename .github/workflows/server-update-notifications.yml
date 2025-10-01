@@ -27,17 +27,18 @@ on:
         description: 'Error details if failed'
         required: false
         type: string
-      enable_reboot_button:
-        description: 'Enable interactive reboot button'
-        required: false
-        type: boolean
-        default: false
     secrets:
       SLACK_BOT_TOKEN:
         description: 'Slack bot token'
         required: true
-      SLACK_CHANNEL_ID:
-        description: 'Slack channel ID'
+      SLACK_ENGINEERING_ALERTS_CHANNEL:
+        description: 'Slack channel for failed notifications'
+        required: true
+      SLACK_ENGINEERING_WARNINGS_CHANNEL:
+        description: 'Slack channel for reboot required notifications'
+        required: true
+      SLACK_ENGINEERING_INFO_CHANNEL:
+        description: 'Slack channel for success notifications'
         required: true
 
 jobs:
@@ -50,7 +51,7 @@ jobs:
     - name: Build success notification
       if: inputs.status == 'success'
       env:
-        SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        SLACK_CHANNEL_ID: ${{ secrets.SLACK_ENGINEERING_INFO_CHANNEL }}
         SERVER_NAME: ${{ inputs.server_name }}
         PACKAGES_UPDATED: ${{ inputs.packages_updated || 'N/A' }}
         MESSAGE: ${{ inputs.message }}
@@ -112,10 +113,10 @@ jobs:
             ]
           }' > slack_payload.json
 
-    - name: Build reboot required notification (without button)
-      if: inputs.status == 'reboot_required' && inputs.enable_reboot_button != true
+    - name: Build reboot required notification
+      if: inputs.status == 'reboot_required'
       env:
-        SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        SLACK_CHANNEL_ID: ${{ secrets.SLACK_ENGINEERING_WARNINGS_CHANNEL }}
         SERVER_NAME: ${{ inputs.server_name }}
         UPTIME: ${{ inputs.uptime || 'Unknown' }}
         MESSAGE: ${{ inputs.message }}
@@ -183,130 +184,11 @@ jobs:
             ]
           }' > slack_payload.json
 
-    - name: Build reboot required notification (with interactive button)
-      if: inputs.status == 'reboot_required' && inputs.enable_reboot_button == true
-      env:
-        SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-        SERVER_NAME: ${{ inputs.server_name }}
-        UPTIME: ${{ inputs.uptime || 'Unknown' }}
-        MESSAGE: ${{ inputs.message }}
-      run: |
-        jq -n \
-          --arg channel "$SLACK_CHANNEL_ID" \
-          --arg server "$SERVER_NAME" \
-          --arg uptime "$UPTIME" \
-          --arg message "$MESSAGE" \
-          --arg timestamp "$TIMESTAMP" \
-          --arg reboot_value "reboot_$SERVER_NAME" \
-          --arg schedule_value "schedule_$SERVER_NAME" \
-          --arg dismiss_value "dismiss_$SERVER_NAME" \
-          --arg confirm_text "Are you sure you want to reboot *$SERVER_NAME*? This will cause a brief service interruption." \
-          '{
-            "channel": $channel,
-            "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": "⚠️ Server Reboot Required"
-                }
-              },
-              {
-                "type": "section",
-                "fields": [
-                  {
-                    "type": "mrkdwn",
-                    "text": ("*Server:*\n" + $server)
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Status:*\nReboot Required"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": ("*Current Uptime:*\n" + $uptime)
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": ("*Timestamp:*\n" + $timestamp)
-                  }
-                ]
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": ("*Updates Applied:*\n" + $message)
-                }
-              },
-              {
-                "type": "actions",
-                "elements": [
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "🔄 Reboot Now"
-                    },
-                    "style": "danger",
-                    "value": $reboot_value,
-                    "action_id": "reboot_server",
-                    "confirm": {
-                      "title": {
-                        "type": "plain_text",
-                        "text": "Confirm Reboot"
-                      },
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": $confirm_text
-                      },
-                      "confirm": {
-                        "type": "plain_text",
-                        "text": "Yes, Reboot"
-                      },
-                      "deny": {
-                        "type": "plain_text",
-                        "text": "Cancel"
-                      }
-                    }
-                  },
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "⏰ Schedule Later"
-                    },
-                    "style": "primary",
-                    "value": $schedule_value,
-                    "action_id": "schedule_reboot"
-                  },
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "❌ Dismiss"
-                    },
-                    "value": $dismiss_value,
-                    "action_id": "dismiss_notification"
-                  }
-                ]
-              },
-              {
-                "type": "context",
-                "elements": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "⚡ Kernel or system libraries were updated requiring a restart."
-                  }
-                ]
-              }
-            ]
-          }' > slack_payload.json
 
     - name: Build skipped notification
       if: inputs.status == 'skipped'
       env:
-        SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        SLACK_CHANNEL_ID: ${{ secrets.SLACK_ENGINEERING_INFO_CHANNEL }}
         SERVER_NAME: ${{ inputs.server_name }}
         UPTIME: ${{ inputs.uptime || 'Unknown' }}
         MESSAGE: ${{ inputs.message }}
@@ -370,7 +252,7 @@ jobs:
     - name: Build failure notification
       if: inputs.status == 'failed'
       env:
-        SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        SLACK_CHANNEL_ID: ${{ secrets.SLACK_ENGINEERING_ALERTS_CHANNEL }}
         SERVER_NAME: ${{ inputs.server_name }}
         UPTIME: ${{ inputs.uptime || 'Unknown' }}
         MESSAGE: ${{ inputs.message }}
@@ -472,9 +354,7 @@ jobs:
       env:
         SERVER_NAME: ${{ inputs.server_name }}
         STATUS: ${{ inputs.status }}
-        ENABLE_REBOOT_BUTTON: ${{ inputs.enable_reboot_button }}
       run: |
         echo "::notice::Notification sent for server: $SERVER_NAME"
         echo "::notice::Status: $STATUS"
         echo "::notice::Timestamp: $TIMESTAMP"
-        echo "::notice::Interactive buttons: $ENABLE_REBOOT_BUTTON"
