@@ -4,8 +4,8 @@
 # Inspired by Pi-hole, k3s, and other popular one-liner installers
 # 
 # Usage examples:
-#   curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- --slack-token xoxb-your-token --slack-channel C1234567890
-#   curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- --slack-token xoxb-your-token --slack-channel C1234567890 --github-repo myorg/myrepo --server-name my-server --enable-reboot-button
+#   curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- --github-repo calebsargeant/infra
+#   curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- --github-repo myorg/myrepo --server-name my-server --github-token ghp_your_token
 #
 # Author: Caleb Sargeant
 # Repository: https://github.com/calebsargeant/reusable-workflows
@@ -25,7 +25,7 @@ show_banner() {
                                   | |                        
                                   |_|                        
                                   
-   Slack-Enabled Server Auto-Update System
+   GitHub Actions Server Auto-Update System  
    https://github.com/calebsargeant/reusable-workflows
    
 EOF
@@ -62,11 +62,9 @@ step() {
 }
 
 # Default configuration
-SLACK_TOKEN=""
-SLACK_CHANNEL=""
+GITHUB_TOKEN=""
 GITHUB_REPO="calebsargeant/infra"
 SERVER_NAME="$(hostname)"
-ENABLE_REBOOT_BUTTON="false"
 SCHEDULE_TIME="03:00:00"
 RANDOMIZED_DELAY="3600"
 FORCE_INSTALL="false"
@@ -76,12 +74,8 @@ DRY_RUN="false"
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --slack-token)
-                SLACK_TOKEN="$2"
-                shift 2
-                ;;
-            --slack-channel)
-                SLACK_CHANNEL="$2"
+            --github-token)
+                GITHUB_TOKEN="$2"
                 shift 2
                 ;;
             --github-repo)
@@ -91,10 +85,6 @@ parse_args() {
             --server-name)
                 SERVER_NAME="$2"
                 shift 2
-                ;;
-            --enable-reboot-button)
-                ENABLE_REBOOT_BUTTON="true"
-                shift
                 ;;
             --schedule-time)
                 SCHEDULE_TIME="$2"
@@ -131,13 +121,11 @@ show_help() {
 Usage: curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- [OPTIONS]
 
 Required Options:
-  --slack-token TOKEN       Slack bot token (starts with xoxb-)
-  --slack-channel ID        Slack channel ID (starts with C)
+  --github-repo REPO        GitHub repository for notifications (required)
 
 Optional Options:
-  --github-repo REPO        GitHub repository for notifications (default: calebsargeant/infra)
+  --github-token TOKEN      GitHub Personal Access Token (can be set later in config)
   --server-name NAME        Server name for notifications (default: hostname)
-  --enable-reboot-button    Enable interactive reboot buttons in Slack
   --schedule-time TIME      Update schedule time in HH:MM:SS format (default: 03:00:00)
   --randomized-delay SEC    Random delay in seconds (default: 3600 = 1 hour)
   --force                   Force installation even if already installed
@@ -146,48 +134,40 @@ Optional Options:
 
 Examples:
   # Basic installation
-  curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- --slack-token xoxb-your-token --slack-channel C1234567890
+  curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | sudo bash -s -- --github-repo calebsargeant/infra
 
   # Full customization
-  curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- \
-    --slack-token xoxb-your-token \
-    --slack-channel C1234567890 \
+  curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | sudo bash -s -- \
     --github-repo myorg/myrepo \
     --server-name my-production-server \
-    --enable-reboot-button \
+    --github-token ghp_your_token_here \
     --schedule-time "02:30:00" \
     --randomized-delay 1800
 
   # Dry run to see what would happen
-  curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- --slack-token xoxb-test --slack-channel C-test --dry-run
+  curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- --github-repo calebsargeant/infra --dry-run
 
 EOF
 }
 
 # Validate required parameters
 validate_args() {
-    if [[ -z "$SLACK_TOKEN" ]]; then
-        error "Slack token is required. Use --slack-token parameter."
-        error "Example: --slack-token xoxb-1234567890-abcdefghijk"
+    if [[ -z "$GITHUB_REPO" ]]; then
+        error "GitHub repository is required. Use --github-repo parameter."
+        error "Example: --github-repo username/repository-name"
         exit 1
     fi
 
-    if [[ -z "$SLACK_CHANNEL" ]]; then
-        error "Slack channel ID is required. Use --slack-channel parameter."
-        error "Example: --slack-channel C1234567890"
+    # Validate repository format
+    if [[ ! "$GITHUB_REPO" =~ ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$ ]]; then
+        error "Invalid GitHub repository format. Use format: owner/repo"
+        error "Example: --github-repo calebsargeant/infra"
         exit 1
     fi
 
-    # Validate token format
-    if [[ ! "$SLACK_TOKEN" =~ ^xoxb- ]]; then
-        error "Invalid Slack token format. Token should start with 'xoxb-'"
-        exit 1
-    fi
-
-    # Validate channel format
-    if [[ ! "$SLACK_CHANNEL" =~ ^C[0-9A-Z]+ ]]; then
-        error "Invalid Slack channel ID format. Channel ID should start with 'C'"
-        exit 1
+    # Validate GitHub token format if provided
+    if [[ -n "$GITHUB_TOKEN" && ! "$GITHUB_TOKEN" =~ ^(ghp_|github_pat_) ]]; then
+        warning "GitHub token format may be invalid. Modern tokens start with 'ghp_' or 'github_pat_'"
     fi
 }
 
@@ -195,7 +175,7 @@ validate_args() {
 check_root() {
     if [[ $EUID -ne 0 && "$DRY_RUN" != "true" ]]; then
         error "This script must be run as root (use sudo)"
-        error "Try: curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | sudo bash -s -- --slack-token $SLACK_TOKEN --slack-channel $SLACK_CHANNEL"
+        error "Try: curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | sudo bash -s -- --github-repo $GITHUB_REPO"
         exit 1
     fi
 }
@@ -280,7 +260,6 @@ LOG_FILE="/var/log/auto-update.log"
 LOCK_FILE="/var/run/auto-update.lock"
 GITHUB_REPO="${GITHUB_REPO:-calebsargeant/infra}"
 SERVER_NAME="${SERVER_NAME:-$(hostname)}"
-ENABLE_REBOOT_BUTTON="${ENABLE_REBOOT_BUTTON:-false}"
 
 # Logging function
 log() {
@@ -326,8 +305,7 @@ send_notification() {
     "message": "$message",
     "uptime": "$uptime",
     "packages_updated": "$packages_updated",
-    "error_details": "$error_details",
-    "enable_reboot_button": "$ENABLE_REBOOT_BUTTON"
+    "error_details": "$error_details"
   }
 }
 EOF
@@ -419,7 +397,6 @@ main() {
     log "=== Starting auto-update process ==="
     log "Server: $SERVER_NAME"
     log "Repository: $GITHUB_REPO"
-    log "Enable Reboot Button: $ENABLE_REBOOT_BUTTON"
     
     # Check system load
     if ! check_system_load; then
@@ -503,31 +480,27 @@ create_config_file() {
     
     if [[ "$DRY_RUN" == "true" ]]; then
         info "[DRY RUN] Would create: /etc/default/auto-update"
-        info "[DRY RUN] Would contain: GITHUB_TOKEN, GITHUB_REPO, SERVER_NAME, ENABLE_REBOOT_BUTTON"
+        info "[DRY RUN] Would contain: GITHUB_TOKEN, GITHUB_REPO, SERVER_NAME"
         return
     fi
 
-    # Create GitHub token (this would need to be provided separately for security)
+    # Create configuration file with GitHub integration
     cat > /etc/default/auto-update << EOF
 # Auto-update configuration
 # Created by: https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh
 
-# GitHub repository for notifications
+# GitHub repository for notifications (repository dispatch events)
 GITHUB_REPO="$GITHUB_REPO"
 
 # Server identification
 SERVER_NAME="$SERVER_NAME"
 
-# Slack integration (via GitHub Actions)
-# Note: GITHUB_TOKEN must be set manually after installation
-# GITHUB_TOKEN="ghp_your_personal_access_token_here"
+# GitHub Personal Access Token for repository dispatch
+# Set this manually for security: GITHUB_TOKEN="ghp_your_personal_access_token_here"
+$(if [[ -n "$GITHUB_TOKEN" ]]; then echo "GITHUB_TOKEN=\"$GITHUB_TOKEN\""; else echo "# GITHUB_TOKEN=\"ghp_your_personal_access_token_here\""; fi)
 
-# Interactive features
-ENABLE_REBOOT_BUTTON="$ENABLE_REBOOT_BUTTON"
-
-# Slack credentials for reference (stored in GitHub repo secrets)
-# SLACK_TOKEN="$SLACK_TOKEN"
-# SLACK_CHANNEL="$SLACK_CHANNEL"
+# Slack notifications are handled by GitHub Actions workflow in the target repository
+# Configure Slack channels and bot token as secrets in your GitHub repository
 EOF
 
     chmod 600 /etc/default/auto-update
@@ -676,8 +649,6 @@ show_completion() {
     echo -e "${CYAN}│${NC} Server Name: $SERVER_NAME"
     echo -e "${CYAN}│${NC} GitHub Repo: $GITHUB_REPO"
     echo -e "${CYAN}│${NC} Schedule: $SCHEDULE_TIME (±${RANDOMIZED_DELAY}s randomization)"
-    echo -e "${CYAN}│${NC} Reboot Button: $ENABLE_REBOOT_BUTTON"
-    echo -e "${CYAN}│${NC} Slack Channel: $SLACK_CHANNEL"
     echo -e "${CYAN}└─────────────────────────────────────────────────────────────┘${NC}"
     echo
     
@@ -694,9 +665,12 @@ show_completion() {
     echo "   sudo nano /etc/default/auto-update"
     echo "   # Uncomment and set: GITHUB_TOKEN=\"ghp_your_token_here\""
     echo
-    echo "3. Add these secrets to your GitHub repository ($GITHUB_REPO):"
-    echo "   SLACK_BOT_TOKEN: $SLACK_TOKEN"
-    echo "   SLACK_CHANNEL_ID: $SLACK_CHANNEL"
+    echo "3. Configure Slack integration in your GitHub repository ($GITHUB_REPO):"
+    echo "   Add these repository secrets:"
+    echo "   - SLACK_BOT_TOKEN: your_slack_bot_token"
+    echo "   - SLACK_ENGINEERING_ALERTS_CHANNEL: your_alerts_channel_id"
+    echo "   - SLACK_ENGINEERING_WARNINGS_CHANNEL: your_warnings_channel_id"
+    echo "   - SLACK_ENGINEERING_INFO_CHANNEL: your_info_channel_id"
     echo
     echo -e "${GREEN}✅ Useful Commands:${NC}"
     echo "  Check timer status:    systemctl status auto-update-slack.timer"
@@ -721,9 +695,7 @@ main() {
     info "Starting installation with the following configuration:"
     info "  Server: $SERVER_NAME"
     info "  GitHub Repo: $GITHUB_REPO"
-    info "  Slack Channel: $SLACK_CHANNEL"
     info "  Schedule: $SCHEDULE_TIME (±${RANDOMIZED_DELAY}s)"
-    info "  Reboot Button: $ENABLE_REBOOT_BUTTON"
     info "  Dry Run: $DRY_RUN"
     echo
     
