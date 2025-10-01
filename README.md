@@ -23,6 +23,88 @@
 
 This repository contains reusable GitHub Actions workflows that can be called from other repositories.
 
+## 🚀 Auto-Update System with Slack Notifications
+
+A one-liner installer for server auto-updates with centralized Slack notifications, inspired by Pi-hole and k3s installers.
+
+### ✨ Features
+
+- 🎯 **One-liner installation** like Pi-hole/k3s
+- 📱 **Rich Slack notifications** with interactive buttons
+- 🔄 **Reboot confirmation buttons** (optional)
+- 🏗️ **Reusable GitHub Actions workflows**
+- 🔐 **Multi-OS support** (Debian/Ubuntu, RHEL/CentOS/Fedora, Arch)
+- ⚡ **Smart load checking** (skips updates during high load)
+- 🛡️ **Systemd security hardening**
+- 📊 **Comprehensive logging**
+
+### 🚀 Quick Start
+
+#### Basic Installation
+```bash
+curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | sudo bash -s -- \
+  --slack-token xoxb-your-slack-bot-token \
+  --slack-channel C1234567890
+```
+
+#### Full Customization
+```bash
+curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | sudo bash -s -- \
+  --slack-token xoxb-your-slack-bot-token \
+  --slack-channel C1234567890 \
+  --github-repo myorg/myrepo \
+  --server-name my-production-server \
+  --enable-reboot-button \
+  --schedule-time "02:30:00" \
+  --randomized-delay 1800
+```
+
+#### Dry Run (See what would happen)
+```bash
+curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/main/install-auto-update.sh | bash -s -- \
+  --slack-token xoxb-test \
+  --slack-channel C-test \
+  --dry-run
+```
+
+### 📋 Installation Options
+
+| Option | Description | Required | Default |
+|--------|-------------|----------|---------|
+| `--slack-token` | Slack bot token (starts with `xoxb-`) | ✅ | - |
+| `--slack-channel` | Slack channel ID (starts with `C`) | ✅ | - |
+| `--github-repo` | GitHub repository for notifications | ❌ | `calebsargeant/infra` |
+| `--server-name` | Server name for notifications | ❌ | `$(hostname)` |
+| `--enable-reboot-button` | Enable interactive reboot buttons | ❌ | `false` |
+| `--schedule-time` | Update time in HH:MM:SS format | ❌ | `03:00:00` |
+| `--randomized-delay` | Random delay in seconds | ❌ | `3600` |
+| `--force` | Force installation over existing | ❌ | `false` |
+| `--dry-run` | Show what would be done | ❌ | `false` |
+
+### 🏗️ Using the Reusable Workflow
+
+Create `.github/workflows/server-notifications.yml` in your repository:
+
+```yaml
+name: Server Update Notifications
+
+on:
+  repository_dispatch:
+    types: [server-update]
+
+jobs:
+  send-notification:
+    uses: calebsargeant/reusable-workflows/.github/workflows/server-update-notifications.yml@main
+    with:
+      server_name: ${{ github.event.client_payload.server_name }}
+      status: ${{ github.event.client_payload.status }}
+      message: ${{ github.event.client_payload.message }}
+      enable_reboot_button: true
+    secrets:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+```
+
 ## Slack Pull Request Events Workflow
 
 A reusable workflow for sending Slack notifications on pull request events including opened PRs, reviewer mentions, and approval/decline reactions.
