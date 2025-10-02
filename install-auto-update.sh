@@ -515,19 +515,7 @@ create_systemd_service() {
         return
     fi
 
-    # Determine appropriate ReadWritePaths based on OS
-    local readwrite_paths="/var/log /var/run /tmp"
-    case $PKG_MANAGER in
-        apt)
-            readwrite_paths+=" /var/lib/apt /var/cache/apt /etc/apt"
-            ;;
-        yum)
-            readwrite_paths+=" /var/lib/rpm /var/cache/yum"
-            ;;
-        pacman)
-            readwrite_paths+=" /var/cache/pacman /var/lib/pacman"
-            ;;
-    esac
+    # Note: Using ProtectSystem=false for package management compatibility
 
     cat > /etc/systemd/system/auto-update-slack.service << EOF
 [Unit]
@@ -542,15 +530,14 @@ ExecStart=/usr/local/bin/auto-update-slack.sh
 User=root
 Group=root
 
-# Security settings
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=$readwrite_paths
+# Security settings (balanced for package management)
+NoNewPrivileges=false
+ProtectSystem=false
 ProtectHome=true
-PrivateTmp=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
+PrivateTmp=false
+ProtectKernelTunables=false
+ProtectKernelModules=false
+ProtectControlGroups=false
 
 # Timeout settings
 TimeoutStartSec=3600
