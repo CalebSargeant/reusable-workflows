@@ -296,20 +296,14 @@ send_notification() {
     local github_api_url="https://api.github.com/repos/${GITHUB_REPO}/dispatches"
     
     local payload
-    payload=$(cat <<EOF
-{
-  "event_type": "server-update",
-  "client_payload": {
-    "server_name": "$SERVER_NAME",
-    "status": "$status",
-    "message": "$message",
-    "uptime": "$uptime",
-    "packages_updated": "$packages_updated",
-    "error_details": "$error_details"
-  }
-}
-EOF
-    )
+    payload=$(jq -n \
+        --arg server_name "$SERVER_NAME" \
+        --arg status "$status" \
+        --arg message "$message" \
+        --arg uptime "$uptime" \
+        --arg packages_updated "$packages_updated" \
+        --arg error_details "$error_details" \
+        '{"event_type": "server-update", "client_payload": {"server_name": $server_name, "status": $status, "message": $message, "uptime": $uptime, "packages_updated": $packages_updated, "error_details": $error_details}}')
     
     log "Sending notification: status=$status, server=$SERVER_NAME"
     
@@ -424,7 +418,11 @@ main() {
     if eval "$UPGRADE_CMD" 2>&1 | tee "$upgrade_output" >> "$LOG_FILE"; then
         # Count upgraded packages
         local packages_count
-        packages_count=$(eval "$PKG_COUNT_CMD" "$upgrade_output" 2>/dev/null || echo "0")
+        packages_count=$(eval "$PKG_COUNT_CMD" "$upgrade_output" 2>/dev/null | tr -d '\n\r' | head -1 || echo "0")
+        # Ensure it's a number
+        if ! [[ "$packages_count" =~ ^[0-9]+$ ]]; then
+            packages_count="0"
+        fi
         
         log "Updates completed successfully. $packages_count packages processed."
         
