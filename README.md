@@ -76,6 +76,74 @@ curl -sSL https://raw.githubusercontent.com/calebsargeant/reusable-workflows/mai
 | `--force` | Force installation over existing | ❌ | `false` |
 | `--dry-run` | Show what would be done | ❌ | `false` |
 
+### 🔑 GitHub Token Setup (Required)
+
+After installation, you **must** configure a GitHub Personal Access Token for the system to work.
+
+#### Why is a GitHub Token Needed?
+
+The GitHub token allows servers to:
+- 🚀 **Trigger GitHub Actions workflows** by sending repository dispatch events
+- 🔐 **Authenticate with GitHub API** to access your repository 
+- 📡 **Send update notifications** that get routed to appropriate Slack channels
+
+**Security Benefits:**
+- ✅ No Slack tokens stored on servers (only in GitHub repository secrets)
+- ✅ Centralized notification logic in GitHub Actions
+- ✅ Limited scope: only needs `repo` access to your repositories
+
+#### Step 1: Create GitHub Personal Access Token
+
+1. Go to **[GitHub Settings → Personal Access Tokens](https://github.com/settings/tokens)**
+2. Click **"Generate new token (classic)"**
+3. Set **Token name**: `Auto-Update System`
+4. Set **Expiration**: `No expiration` (or your preferred timeframe)
+5. Select **Scopes**: ✅ `repo` (Full control of private repositories)
+6. Click **"Generate token"**
+7. **Copy the token** immediately (you won't see it again!)
+
+#### Step 2: Add Token to Server Configuration
+
+On each server where you installed the auto-update system:
+
+```bash
+sudo nano /etc/default/auto-update
+```
+
+Uncomment and set the GitHub token:
+```bash
+# GitHub Personal Access Token for repository dispatch
+GITHUB_TOKEN="ghp_your_personal_access_token_here"
+```
+
+#### Step 3: Verify Token Works
+
+```bash
+# Test the auto-update system
+sudo systemctl start auto-update-slack.service
+
+# Check if notification was sent successfully
+sudo journalctl -u auto-update-slack.service | grep "Notification sent successfully"
+
+# Check your Slack channels for the notification!
+```
+
+#### Token Security Best Practices
+
+- 🔒 **Store securely**: Only in the server configuration file (`/etc/default/auto-update`)
+- 🚫 **Don't share**: Never commit tokens to version control
+- 🔄 **Rotate regularly**: Generate new tokens periodically  
+- 📊 **Monitor usage**: Check GitHub token usage in your account settings
+- 🎯 **Minimal scope**: Only grant `repo` access, nothing more
+
+#### Architecture Flow
+
+```
+Server → GitHub Token → GitHub API → Repository Dispatch Event → GitHub Actions → Slack Channels
+```
+
+This architecture keeps Slack credentials centralized and secure while allowing servers to trigger notifications through GitHub's infrastructure.
+
 ### 🏗️ Using the Reusable Workflow
 
 Create `.github/workflows/server-notifications.yml` in your repository:
