@@ -336,16 +336,27 @@ check_reboot_required() {
         return 0  # Reboot required
     fi
     
-    # Additional checks for kernel updates
+    # Additional checks for kernel updates (only for actual versioned kernels)
     if command -v dpkg &> /dev/null; then
-        if dpkg -l | grep -q "^ii.*linux-image-$(uname -r)"; then
-            local current_kernel newest_kernel
-            current_kernel=$(uname -r)
-            newest_kernel=$(dpkg -l | grep "^ii.*linux-image-" | sort -V | tail -1 | awk '{print $2}' | sed 's/linux-image-//')
+        local current_kernel
+        current_kernel=$(uname -r)
+        
+        # Get the currently running kernel package name
+        local running_kernel_pkg="linux-image-$current_kernel"
+        
+        # Check if the currently running kernel package exists in installed packages
+        if dpkg -l | grep -q "^ii.*$running_kernel_pkg"; then
+            # Get the newest versioned kernel (exclude meta-packages like rpi-v8, rpi-2712)
+            local newest_versioned_kernel
+            newest_versioned_kernel=$(dpkg -l | grep "^ii.*linux-image-[0-9]" | sort -V | tail -1 | awk '{print $2}' | sed 's/linux-image-//')
             
-            if [[ "$current_kernel" != "$newest_kernel" ]]; then
+            # Only compare if we found a versioned kernel and it's different from current
+            if [[ -n "$newest_versioned_kernel" && "$current_kernel" != "$newest_versioned_kernel" ]]; then
                 return 0  # Kernel update requires reboot
             fi
+        else
+            # Running kernel package not found in installed packages (unusual case)
+            log "Warning: Running kernel $current_kernel not found in package list"
         fi
     fi
     
