@@ -352,7 +352,15 @@ check_reboot_required() {
             
             # Only compare if we found a versioned kernel and it's different from current
             if [[ -n "$newest_versioned_kernel" && "$current_kernel" != "$newest_versioned_kernel" ]]; then
-                return 0  # Kernel update requires reboot
+                # Extract base version (remove architecture variants like -rpi-2712, -rpi-v8)
+                local current_base_version newest_base_version
+                current_base_version=$(echo "$current_kernel" | sed 's/-rpi-.*$//')
+                newest_base_version=$(echo "$newest_versioned_kernel" | sed 's/-rpi-.*$//')
+                
+                # Only require reboot if the base kernel version is actually different
+                if [[ "$current_base_version" != "$newest_base_version" ]]; then
+                    return 0  # Kernel update requires reboot
+                fi
             fi
         else
             # Running kernel package not found in installed packages (unusual case)
