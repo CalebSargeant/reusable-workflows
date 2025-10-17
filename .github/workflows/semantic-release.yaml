@@ -1,0 +1,202 @@
+#What Each Repository Needs
+#
+#For any repository to use this semantic release workflow:
+#
+#1. pyproject.toml with semantic release configuration
+#2. Caller workflow (see below)
+
+#3. Setup GitHub App:
+
+#1. Create a GitHub App:
+#◦  Go to GitHub Settings → Developer settings → GitHub Apps → New App
+#◦  Name: "Platform1 Release Bot"
+#◦  Homepage URL: Your organization URL
+#◦  Permissions:
+#▪  Repository permissions:
+#▪  Contents: Read and write
+#▪  Metadata: Read
+#▪  Pull requests: Read (if you want to analyze PR commits)
+#▪  Account permissions: None
+#2. Generate private key:
+#◦  After creating the app, generate a private key
+#◦  Download the .pem file
+#3. Install the app:
+#◦  Install it on your repositories or organization
+#◦  Note the App ID
+#
+#Add Secrets to Your Repository
+#
+#1. Go to your repository: https://github.com/platform1/platform1-infra
+#2. Click Settings → Secrets and variables → Actions
+#3. Click "New repository secret" and add these two secrets:
+#
+#Secret 1:
+#•  Name: RELEASE_APP_ID
+#•  Value: 2019620
+#
+#Secret 2:
+#•  Name: RELEASE_APP_PRIVATE_KEY
+#•  Value: Copy and paste the entire private key contents:
+
+name: Semantic Release (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      bump:
+        description: 'Force version bump type (for workflow_dispatch)'
+        required: false
+        type: string
+        default: ''
+      python_version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.11'
+      working_directory:
+        description: 'Working directory for the semantic release'
+        required: false
+        type: string
+        default: '.'
+    outputs:
+      version:
+        description: "The newly released version"
+        value: ${{ jobs.semantic-release.outputs.new_version }}
+      released:
+        description: "Whether a new release was published"
+        value: ${{ jobs.semantic-release.outputs.released }}
+      tag:
+        description: "The Git tag for the release"
+        value: ${{ jobs.semantic-release.outputs.tag }}
+    secrets:
+      RELEASE_TOKEN:
+        description: 'GitHub token with permissions to push to protected branches'
+        required: false
+      APP_ID:
+        description: 'GitHub App ID for authentication'
+        required: false
+      APP_PRIVATE_KEY:
+        description: 'GitHub App private key for authentication'
+        required: false
+
+# default: least privileged permissions across all jobs
+permissions:
+  contents: read
+
+jobs:
+  semantic-release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    concurrency:
+      group: semantic-release-${{ github.repository }}-${{ github.ref_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: write      # Required to push commits and tags
+      id-token: write      # Required for GitHub's OIDC token
+    outputs:
+      new_version: ${{ steps.release.outputs.version }}
+      released: ${{ steps.release.outputs.released }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        if: secrets.APP_ID != '' && secrets.APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0  # Full history needed for semantic release
+          # Use GitHub App token, PAT, or default GITHUB_TOKEN
+          token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          
+      - name: Force branch to workflow sha
+        run: |
+          git reset --hard ${{ github.sha }}
+
+      - name: Change to working directory
+        if: inputs.working_directory != '.'
+        run: cd ${{ inputs.working_directory }}
+
+      - name: Python Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v10.4.1
+        with:
+          github_token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          git_committer_name: "github-actions[bot]"
+          git_committer_email: "actions@users.noreply.github.com"
+          # Force version bump for manual dispatch
+          force: ${{ inputs.bump }}
+          # Skip build since this is infrastructure, not a Python package
+          build: false
+          # Enable changelog generation
+          changelog: true
+          # Enable VCS (GitHub) release creation
+          vcs_release: true
+          # Enable commits if we have elevated permissions (App or PAT)
+          commit: ${{ steps.app-token.outputs.token != '' || secrets.RELEASE_TOKEN != '' || 'true' }}
+          # Working directory
+          directory: ${{ inputs.working_directory }}
+          # Increase verbosity for debugging
+          verbosity: 2
+
+      - name: Output release info
+        if: steps.release.outputs.released == 'true'
+        run: |
+          echo "🎉 New release published: ${{ steps.release.outputs.tag }}"
+          echo "📝 Release notes available at: ${{ steps.release.outputs.link }}"
+          echo "📦 This is a deployment version tag for the infrastructure"
+          echo "🐳 Docker images will be built and pushed by the docker-release workflow"
+          echo "ℹ️ To build Docker images, go to Actions > Docker Release Build and run manually or wait for the release event"
+          
+
+# Caller Workflow Example:
+#name: Semantic Release
+#
+#on:
+#  push:
+#    branches:
+#      - main      # Production releases only
+#    paths-ignore:
+#      - 'dockerfiles/**'  # Docker changes don't trigger releases
+#      - '**.md'           # Documentation changes don't trigger releases
+#      - '.github/workflows/docker-*.yaml'  # Docker workflow changes don't trigger releases
+#  workflow_dispatch:
+#    inputs:
+#      bump:
+#        description: 'Version bump type'
+#        required: false
+#        default: 'patch'
+#        type: choice
+#        options:
+#          - patch
+#          - minor
+#          - major
+#
+#jobs:
+#  semantic-release:
+#    name: Semantic Release
+#    uses: tengen-systems/platform1-workflows/.github/workflows/semantic-release.yaml@main
+#    with:
+#      bump: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
+#      working_directory: '.'
+#    secrets:
+#      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+#
+#  post-release:
+#    name: Post Release Actions
+#    runs-on: ubuntu-latest
+#    needs: semantic-release
+#    if: needs.semantic-release.outputs.released == 'true'
+#    steps:
+#      - name: Output release info
+#        run: |
+#          echo "🎉 New release published: ${{ needs.semantic-release.outputs.tag }}"
+#          echo "📝 Version: ${{ needs.semantic-release.outputs.version }}"
+#          echo "📦 This is a deployment version tag for the infrastructure"
+#          echo "🐳 Docker images will be built and pushed by the docker-release workflow"
+#          echo "ℹ️ To build Docker images, go to Actions > Docker Release Build and run manually or wait for the release event"
