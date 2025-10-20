@@ -4,6 +4,10 @@ permissions:
 on:
   workflow_call:
     inputs:
+      run_all:
+        type: boolean
+        default: true
+        description: "Run all checks in a single consolidated job. When true, overrides all individual run_* flags."
       stage:
         type: string
         default: pre-commit
@@ -16,40 +20,98 @@ on:
       run_security:
         type: boolean
         default: true
+        description: "(Ignored if run_all is true)"
       run_file_quality:
         type: boolean
         default: true
+        description: "(Ignored if run_all is true)"
       run_python:
         type: boolean
         default: true
+        description: "(Ignored if run_all is true)"
       run_javascript:
         type: boolean
         default: true
+        description: "(Ignored if run_all is true)"
       run_terraform:
         type: boolean
         default: true
+        description: "(Ignored if run_all is true)"
       run_docker:
         type: boolean
         default: true
+        description: "(Ignored if run_all is true)"
       run_license:
         type: boolean
         default: false
+        description: "(Ignored if run_all is true)"
       run_code_metrics:
         type: boolean
         default: false
+        description: "(Ignored if run_all is true)"
       run_performance:
         type: boolean
         default: false
+        description: "(Ignored if run_all is true)"
       run_precommit_basic:
         type: boolean
         default: true
+        description: "(Ignored if run_all is true)"
   push:
     branches: [ main ]
   pull_request:
 
 jobs:
+  all-checks:
+    if: ${{ inputs.run_all }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 'lts/*'
+      - uses: hashicorp/setup-terraform@633666f66e0061ca3b725c73b2ec20cd13a8fdd1 # v2.0.3
+      - name: Install all tooling
+        run: |
+          set -e
+          # Python tools
+          python -m pip install --upgrade pip || true
+          pip install yamllint black isort flake8 mypy bandit safety semgrep checkov pip-licenses || true
+          # Node tools
+          npm i -g prettier eslint typescript license-checker || true
+          # System tools
+          SHFMT_VERSION=3.8.0
+          curl -sSL -o /tmp/shfmt "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64"
+          sudo install -m 0755 /tmp/shfmt /usr/local/bin/shfmt || true
+          curl -sSL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin actionlint || true
+          curl -sSL https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash || true
+          curl -sSL https://aquasecurity.github.io/tfsec/master/install.sh | bash || true
+          curl -sSL https://raw.githubusercontent.com/hadolint/hadolint/master/install.sh | sudo bash -s -- -b /usr/local/bin || true
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin || true
+          sudo apt-get update -y || true
+          sudo apt-get install -y cloc || true
+          pip install radon || true
+      - uses: calebsargeant/pre-commit-hooks@feae54b3c14c932f47b8cf94f733720009b7a96d # v1.0.1
+        with:
+          stage: ${{ inputs.stage }}
+          fail_on_high_severity: ${{ inputs.fail_on_high_severity }}
+          fail_on_medium_severity: ${{ inputs.fail_on_medium_severity }}
+          run_file_quality: 'true'
+          run_security: 'true'
+          run_python: 'true'
+          run_javascript: 'true'
+          run_terraform: 'true'
+          run_docker: 'true'
+          run_license: 'true'
+          run_code_metrics: 'true'
+          run_performance: 'true'
+          run_precommit_basic: 'true'
+
   file-quality:
-    if: ${{ inputs.run_file_quality }}
+    if: ${{ !inputs.run_all && inputs.run_file_quality }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -89,7 +151,7 @@ jobs:
           run_precommit_basic: 'false'
 
   security:
-    if: ${{ inputs.run_security }}
+    if: ${{ !inputs.run_all && inputs.run_security }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -128,7 +190,7 @@ jobs:
           run_precommit_basic: 'false'
 
   python:
-    if: ${{ inputs.run_python }}
+    if: ${{ !inputs.run_all && inputs.run_python }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -154,7 +216,7 @@ jobs:
           run_precommit_basic: 'false'
 
   javascript:
-    if: ${{ inputs.run_javascript }}
+    if: ${{ !inputs.run_all && inputs.run_javascript }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -179,7 +241,7 @@ jobs:
           run_precommit_basic: 'false'
 
   terraform:
-    if: ${{ inputs.run_terraform }}
+    if: ${{ !inputs.run_all && inputs.run_terraform }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -205,7 +267,7 @@ jobs:
           run_precommit_basic: 'false'
 
   docker:
-    if: ${{ inputs.run_docker }}
+    if: ${{ !inputs.run_all && inputs.run_docker }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -228,7 +290,7 @@ jobs:
           run_precommit_basic: 'false'
 
   license:
-    if: ${{ inputs.run_license }}
+    if: ${{ !inputs.run_all && inputs.run_license }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -257,7 +319,7 @@ jobs:
           run_precommit_basic: 'false'
 
   code-metrics:
-    if: ${{ inputs.run_code_metrics }}
+    if: ${{ !inputs.run_all && inputs.run_code_metrics }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -281,7 +343,7 @@ jobs:
           run_precommit_basic: 'false'
 
   performance:
-    if: ${{ inputs.run_performance }}
+    if: ${{ !inputs.run_all && inputs.run_performance }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -303,7 +365,7 @@ jobs:
           run_precommit_basic: 'false'
 
   precommit-basic:
-    if: ${{ inputs.run_precommit_basic }}
+    if: ${{ !inputs.run_all && inputs.run_precommit_basic }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
