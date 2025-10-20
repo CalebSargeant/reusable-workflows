@@ -38,7 +38,7 @@
 #•  Name: RELEASE_APP_PRIVATE_KEY
 #•  Value: Copy and paste the entire private key contents:
 
-name: Semantic Release (Reusable)
+name: Semantic Release
 
 on:
   push:
@@ -118,11 +118,11 @@ jobs:
     steps:
       - name: Generate GitHub App Token
         id: app-token
-        if: ${{ secrets.APP_ID != '' }}
         uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+        continue-on-error: true
           
       - name: Checkout Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -134,12 +134,16 @@ jobs:
       
       - name: Validate required secrets
         id: validate-secrets
+        env:
+          APP_TOKEN_OUTCOME: ${{ steps.app-token.outcome }}
+        shell: bash
         run: |
-          if [[ -z "${{ secrets.APP_ID }}" && -z "${{ secrets.RELEASE_TOKEN }}" ]]; then
-            echo "❌ ERROR: No authentication secrets configured!"
-            echo "Please configure at least one of the following:"
+          # Check if GitHub App token generation failed (indicates missing secrets)
+          if [[ "${APP_TOKEN_OUTCOME}" == "failure" ]]; then
+            echo "❌ ERROR: GitHub App token generation failed!"
+            echo "Please configure authentication secrets:"
             echo "  1. APP_ID + APP_PRIVATE_KEY (GitHub App authentication)"
-            echo "  2. RELEASE_TOKEN (Personal Access Token)"
+            echo "  2. OR RELEASE_TOKEN (Personal Access Token)"
             echo ""
             echo "Instructions:"
             echo "  - Go to repository Settings → Secrets and variables → Actions"
@@ -147,13 +151,11 @@ jobs:
             exit 1
           fi
           
-          if [[ -n "${{ secrets.APP_ID }}" && -z "${{ secrets.APP_PRIVATE_KEY }}" ]]; then
-            echo "⚠️  WARNING: APP_ID is set but APP_PRIVATE_KEY is missing!"
-            echo "GitHub App authentication requires both APP_ID and APP_PRIVATE_KEY."
-            echo "Will fallback to RELEASE_TOKEN or GITHUB_TOKEN."
+          if [[ "${APP_TOKEN_OUTCOME}" == "success" ]]; then
+            echo "✅ GitHub App authentication configured"
+          else
+            echo "ℹ️ Using RELEASE_TOKEN or GITHUB_TOKEN for authentication"
           fi
-          
-          echo "✅ Secret validation passed"
           
       - name: Force branch to workflow sha
         run: |
@@ -161,7 +163,10 @@ jobs:
 
       - name: Change to working directory
         if: inputs.working_directory != '.'
-        run: cd ${{ inputs.working_directory }}
+        env:
+          WORKING_DIR: ${{ inputs.working_directory }}
+        run: |
+          cd "${WORKING_DIR}"
 
       - name: Python Semantic Release
         id: release
@@ -179,7 +184,7 @@ jobs:
           # Enable VCS (GitHub) release creation
           vcs_release: true
           # Enable commits if we have elevated permissions (App or PAT)
-          commit: ${{ steps.app-token.outputs.token != '' || secrets.RELEASE_TOKEN != '' || 'true' }}
+          commit: true
           # Working directory
           directory: ${{ inputs.working_directory }}
           # Increase verbosity for debugging
