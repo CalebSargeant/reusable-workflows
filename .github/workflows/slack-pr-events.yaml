@@ -22,10 +22,10 @@ jobs:
     name: Send Slack PR notifications
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Send Slack notification
-        uses: cakarci/pull-request-workflow@v1.11.5
+        uses: cakarci/pull-request-workflow@fdff04f357a510a7d509f03a33890724a670dfb6 # v1.11.5
         with:
           github-token: ${{ github.token }}
           slack-token: ${{ secrets.SLACK_BOT_TOKEN }}
