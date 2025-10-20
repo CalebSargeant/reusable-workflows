@@ -1,4 +1,6 @@
 name: Pre-commit Hooks CI
+permissions:
+  contents: read
 on:
   workflow_call:
     inputs:
