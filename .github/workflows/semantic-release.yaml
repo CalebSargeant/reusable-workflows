@@ -101,18 +101,41 @@ jobs:
       - name: Generate GitHub App Token
         id: app-token
         if: ${{ secrets.APP_ID != '' }}
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0  # Full history needed for semantic release
           # Use GitHub App token, PAT, or default GITHUB_TOKEN
           token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      
+      - name: Validate required secrets
+        id: validate-secrets
+        run: |
+          if [[ -z "${{ secrets.APP_ID }}" && -z "${{ secrets.RELEASE_TOKEN }}" ]]; then
+            echo "❌ ERROR: No authentication secrets configured!"
+            echo "Please configure at least one of the following:"
+            echo "  1. APP_ID + APP_PRIVATE_KEY (GitHub App authentication)"
+            echo "  2. RELEASE_TOKEN (Personal Access Token)"
+            echo ""
+            echo "Instructions:"
+            echo "  - Go to repository Settings → Secrets and variables → Actions"
+            echo "  - Click 'New repository secret' and add the required secret"
+            exit 1
+          fi
+          
+          if [[ -n "${{ secrets.APP_ID }}" && -z "${{ secrets.APP_PRIVATE_KEY }}" ]]; then
+            echo "⚠️  WARNING: APP_ID is set but APP_PRIVATE_KEY is missing!"
+            echo "GitHub App authentication requires both APP_ID and APP_PRIVATE_KEY."
+            echo "Will fallback to RELEASE_TOKEN or GITHUB_TOKEN."
+          fi
+          
+          echo "✅ Secret validation passed"
           
       - name: Force branch to workflow sha
         run: |
@@ -124,7 +147,7 @@ jobs:
 
       - name: Python Semantic Release
         id: release
-        uses: python-semantic-release/python-semantic-release@v10.4.1
+        uses: python-semantic-release/python-semantic-release@4d4cb0ab842247caea1963132c242c62aab1e4d5 # v10.4.1
         with:
           github_token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           git_committer_name: "github-actions[bot]"
