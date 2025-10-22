@@ -94,7 +94,7 @@ jobs:
           sudo apt-get update -y || true
           sudo apt-get install -y cloc || true
           pip install radon || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           fail_on_high_severity: ${{ inputs.fail_on_high_severity }}
@@ -134,7 +134,7 @@ jobs:
           sudo install -m 0755 /tmp/shfmt /usr/local/bin/shfmt || true
           # Install actionlint
           curl -sSL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin actionlint || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           fail_on_high_severity: ${{ inputs.fail_on_high_severity }}
@@ -173,7 +173,7 @@ jobs:
           curl -sSL -o /tmp/shfmt "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64"
           sudo install -m 0755 /tmp/shfmt /usr/local/bin/shfmt || true
           curl -sSL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin actionlint || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           fail_on_high_severity: ${{ inputs.fail_on_high_severity }}
@@ -201,7 +201,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip || true
           pip install black isort flake8 mypy || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
@@ -226,7 +226,7 @@ jobs:
       - name: Install Node tooling
         run: |
           npm i -g prettier eslint typescript || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
@@ -252,7 +252,7 @@ jobs:
           curl -sSL https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash || true
           curl -sSL https://aquasecurity.github.io/tfsec/master/install.sh | bash || true
           pip install checkov || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
@@ -275,7 +275,7 @@ jobs:
         run: |
           curl -sSL https://raw.githubusercontent.com/hadolint/hadolint/master/install.sh | sudo bash -s -- -b /usr/local/bin
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
@@ -304,7 +304,7 @@ jobs:
         run: |
           pip install pip-licenses || true
           npm i -g license-checker || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
@@ -328,7 +328,7 @@ jobs:
           sudo apt-get update -y || true
           sudo apt-get install -y cloc || true
           pip install radon || true
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
@@ -350,7 +350,7 @@ jobs:
       - name: Install performance tooling
         run: |
           echo "No special tooling required"
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
@@ -369,7 +369,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-      - uses: calebsargeant/pre-commit-hooks@1.1.0
+      - uses: calebsargeant/pre-commit-hooks@ee518abc8c091b1cbd72dfd0a7bfc09edd0cab0f # v1.1.0
         with:
           stage: ${{ inputs.stage }}
           run_file_quality: 'false'
