@@ -1,4 +1,6 @@
 name: Slack Pull Request Events
+permissions:
+  contents: read
 
 on:
   pull_request:
