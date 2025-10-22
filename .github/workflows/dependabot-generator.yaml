@@ -1,0 +1,332 @@
+# How to call this reusable workflow from another repository
+# ---------------------------------------------------------
+# Example: .github/workflows/dependabot-autobots.yaml
+#
+# name: Dependabot Autobots
+# on:
+#   workflow_dispatch:
+#   schedule:
+#     - cron: '17 4 * * *'
+# jobs:
+#   dependabot:
+#     uses: CalebSargeant/reusable-workflows/.github/workflows/dependabot-generator.yaml@main
+#     # Optional: if your org sets restrictive defaults, grant the job permissions here
+#     permissions:
+#       contents: write
+#       pull-requests: write
+#     secrets:
+#       RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+#       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+#   post:
+#     needs: dependabot
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Print results
+#         run: |
+#           echo "state=${{ needs.dependabot.outputs.state }}"
+#           echo "ecosystems=${{ needs.dependabot.outputs.ecosystems }}"
+
+name: Autobots
+
+on:
+  push:
+    branches:
+      - main
+  # Reusable workflow support
+  workflow_call:
+    secrets:
+      RELEASE_APP_ID:
+        description: 'GitHub App ID used to generate an installation token'
+        required: false
+      RELEASE_APP_PRIVATE_KEY:
+        description: 'GitHub App private key (PEM)'
+        required: false
+    outputs:
+      state:
+        description: 'Result state of the rollout (updated|unchanged|skipped)'
+        value: ${{ jobs.rollout.outputs.state }}
+      ecosystems:
+        description: 'Detected ecosystems included in the generated config'
+        value: ${{ jobs.rollout.outputs.ecosystems }}
+  # Optional scheduled trigger (daily)
+  schedule:
+    - cron: '17 4 * * *'
+
+permissions:
+  contents: write        # push branch with updated config
+  pull-requests: write   # open/update PR
+
+jobs:
+  rollout:
+    name: rollout
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dependabot-generator-${{ github.repository }}
+      cancel-in-progress: false
+    outputs:
+      state: ${{ steps.final.outputs.state }}
+      ecosystems: ${{ steps.final.outputs.ecosystems }}
+
+    steps:
+      # Authenticate as GitHub App (preferred)
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        continue-on-error: true
+
+      - name: Validate authentication
+        id: validate-secrets
+        env:
+          APP_TOKEN_OUTCOME: ${{ steps.app-token.outcome }}
+        shell: bash
+        run: |
+          if [[ "${APP_TOKEN_OUTCOME}" == "failure" ]]; then
+            echo "⚠️ GitHub App token generation failed. Falling back to GITHUB_TOKEN."
+          else
+            echo "✅ Using GitHub App authentication"
+          fi
+
+      # Gather repo metadata and default branch; skip archived/disabled repos
+      - name: Get repository info
+        id: repo-info
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          script: |
+            const {owner, repo} = context.repo;
+            const r = await github.rest.repos.get({owner, repo});
+            core.setOutput('default_branch', r.data.default_branch);
+            core.setOutput('archived', String(r.data.archived));
+            core.setOutput('disabled', String(r.data.disabled));
+            const skip = r.data.archived || r.data.disabled;
+            core.setOutput('skip', String(skip));
+            core.setOutput('reason', skip ? `archived=${r.data.archived} disabled=${r.data.disabled}` : '');
+
+      - name: Skip archived/disabled repository
+        id: outcome
+        if: steps.repo-info.outputs.skip == 'true'
+        shell: bash
+        run: |
+          echo "state=skipped" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Autobots Summary";
+            echo "- Repository: ${{ github.repository }}";
+            echo "- Result: skipped (archived/disabled: ${{ steps.repo-info.outputs.reason }})";
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout repository
+        if: steps.repo-info.outputs.skip != 'true'
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ steps.repo-info.outputs.default_branch }}
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git author
+        if: steps.repo-info.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@users.noreply.github.com"
+
+      # Detect ecosystems and generate the desired .github/dependabot.yml
+      - name: Generate Dependabot configuration
+        id: generate
+        if: steps.repo-info.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p .github
+
+          GEN=".github/dependabot.yml.generated"
+          TARGET=".github/dependabot.yml"
+
+          # Start file with a clear header
+          {
+            echo "# Generated by the 'Autobots' workflow. Manual edits may be overwritten.";
+            echo "# This file is derived from repository contents to keep Dependabot coverage up-to-date.";
+            echo "version: 2";
+            echo "updates:";
+          } > "$GEN"
+
+          # shellcheck disable=SC2129
+          add_update() {
+            local eco="$1" dir="$2" interval="${3:-daily}"
+            echo "  - package-ecosystem: \"${eco}\"" >> "$GEN"
+            echo "    directory: \"${dir}\"" >> "$GEN"
+            echo "    schedule:" >> "$GEN"
+            echo "      interval: \"${interval}\"" >> "$GEN"
+          }
+
+          # Always include GitHub Actions updates
+          add_update "github-actions" "/"
+
+          # Helper: list repo files once
+          mapfile -t FILES < <(git ls-files --exclude-standard)
+          has_any() { printf '%s\n' "${FILES[@]}" | grep -qE "$1"; }
+
+          # Node.js (npm)
+          if has_any '(^|/)(package.json|pnpm-lock.yaml|yarn.lock)$'; then
+            add_update "npm" "/"
+          fi
+
+          # Poetry
+          if has_any '(^|/)poetry.lock$'; then
+            add_update "poetry" "/"
+          else
+            # Basic pyproject.toml check in repo root for Poetry
+            if [[ -f pyproject.toml ]] && grep -q '^\[tool\.poetry\]' pyproject.toml; then
+              add_update "poetry" "/"
+            fi
+          fi
+
+          # Pip requirements
+          if has_any '(^|/)requirements[^/]*\.txt$'; then
+            add_update "pip" "/"
+          fi
+
+          # Go modules
+          if has_any '(^|/)go\.mod$'; then
+            add_update "gomod" "/"
+          fi
+
+          # Java (Maven)
+          if has_any '(^|/)pom\.xml$'; then
+            add_update "maven" "/"
+          fi
+
+          # Java (Gradle)
+          if has_any '(^|/)build\.gradle(\.kts)?$'; then
+            add_update "gradle" "/"
+          fi
+
+          # PHP (Composer)
+          if has_any '(^|/)composer\.json$'; then
+            add_update "composer" "/"
+          fi
+
+          # .NET (NuGet)
+          if has_any '(^|/)(packages\.config|[^/]+\.csproj|[^/]+\.sln)$'; then
+            add_update "nuget" "/"
+          fi
+
+          # Docker
+          if has_any '(^|/)(Dockerfile|[^/]*Dockerfile)$'; then
+            add_update "docker" "/"
+          fi
+
+          # Terraform (basic)
+          if has_any '\\.tf$'; then
+            add_update "terraform" "/"
+          fi
+
+          # Ensure newline at EOF
+          printf "\n" >> "$GEN"
+
+          # Determine whether content differs
+          CHANGED=false
+          if [[ -f "$TARGET" ]]; then
+            if ! cmp -s "$GEN" "$TARGET"; then
+              CHANGED=true
+              cp "$GEN" "$TARGET"
+            fi
+          else
+            CHANGED=true
+            cp "$GEN" "$TARGET"
+          fi
+
+          # Expose outputs
+          echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
+          ECOS=$(grep -E 'package-ecosystem:' "$GEN" | awk '{print $3}' | tr -d '"' | paste -sd, -)
+          echo "ecosystems=${ECOS}" >> "$GITHUB_OUTPUT"
+
+      # Commit and open/update a PR if changes were made
+      - name: Commit and open or update PR
+        id: create-pr
+        if: steps.repo-info.outputs.skip != 'true' && steps.generate.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ steps.repo-info.outputs.default_branch }}
+          ECOSYSTEMS: ${{ steps.generate.outputs.ecosystems }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="autobot/dependabot-config"
+
+          # Create/update branch
+          git fetch origin "${DEFAULT_BRANCH}" --depth=1
+          git checkout -B "${BRANCH}" "origin/${DEFAULT_BRANCH}"
+          git add .github/dependabot.yml
+          if git diff --cached --quiet; then
+            echo "No staged changes; nothing to commit."
+          else
+            git commit -m "chore: configure Dependabot"
+          fi
+          git push -u origin "${BRANCH}" --force-with-lease
+
+          TITLE="chore: configure Dependabot"
+          BODY=$(cat <<PR
+          This PR adds or updates .github/dependabot.yml based on the repository's detected ecosystems.
+
+          - Generated by the reusable workflow: Autobots
+          - Idempotent: re-runs update this PR/branch rather than creating duplicates
+          - Includes: $ECOSYSTEMS
+
+          If you need to customize, commit to this branch; future runs will reconcile differences.
+          PR
+          )
+
+          # Re-use existing open PR if present
+          PR_NUM=$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number' || true)
+          if [[ -n "${PR_NUM}" ]]; then
+            gh pr edit "${PR_NUM}" --title "${TITLE}" --body "${BODY}"
+          else
+            gh pr create --base "${DEFAULT_BRANCH}" --head "${BRANCH}" --title "${TITLE}" --body "${BODY}" --draft=false
+          fi
+
+      # Set final outcome and write a human-readable summary
+      - name: Summarize result
+        if: steps.repo-info.outputs.skip != 'true'
+        id: summarize
+        shell: bash
+        run: |
+          if [[ "${{ steps.generate.outputs.changed }}" == "true" ]]; then
+            RESULT="updated"
+          else
+            RESULT="unchanged"
+          fi
+          echo "state=${RESULT}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Autobots Summary";
+            echo "- Repository: ${{ github.repository }}";
+            echo "- Default branch: ${{ steps.repo-info.outputs.default_branch }}";
+            echo "- Result: ${RESULT}";
+            ECOS="${{ steps.generate.outputs.ecosystems }}"; echo "- Ecosystems: ${ECOS:-none}";
+            if [[ "${RESULT}" == "updated" ]]; then
+              echo "- Changes: .github/dependabot.yml created/updated";
+              echo "- PR: existing or newly created from branch 'autobot/dependabot-config'";
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Finalize outputs
+        id: final
+        shell: bash
+        env:
+          SKIPPED: ${{ steps.outcome.outputs.state }}
+          SUMMARY: ${{ steps.summarize.outputs.state }}
+          ECOS: ${{ steps.generate.outputs.ecosystems }}
+        run: |
+          # Prefer summary (updated/unchanged); fall back to skipped; else empty
+          if [[ -n "${SUMMARY}" ]]; then
+            echo "state=${SUMMARY}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${SKIPPED}" ]]; then
+            echo "state=${SKIPPED}" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=" >> "$GITHUB_OUTPUT"
+          fi
+          # Ecosystems only when generated
+          echo "ecosystems=${ECOS}" >> "$GITHUB_OUTPUT"
