@@ -15,8 +15,8 @@
 #       contents: write
 #       pull-requests: write
 #     secrets:
-#       RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
-#       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+#       APP_ID: ${{ secrets.APP_ID }}
+#       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 #   post:
 #     needs: dependabot
 #     runs-on: ubuntu-latest
@@ -35,10 +35,10 @@ on:
   # Reusable workflow support
   workflow_call:
     secrets:
-      RELEASE_APP_ID:
+      APP_ID:
         description: 'GitHub App ID used to generate an installation token'
         required: false
-      RELEASE_APP_PRIVATE_KEY:
+      APP_PRIVATE_KEY:
         description: 'GitHub App private key (PEM)'
         required: false
     outputs:
@@ -73,8 +73,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
         continue-on-error: true
 
       - name: Validate authentication
