@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.0.4 (2025-10-25)
+
+### Chores
+
+- Add Docker Bake reusable workflow and enhance Dependabot workflow documentation
+  ([`1840138`](https://github.com/CalebSargeant/reusable-workflows/commit/1840138730d8a17a2575071fed679cdb3958bbde))
+
+- Configure Dependabot
+  ([`d3d4eba`](https://github.com/CalebSargeant/reusable-workflows/commit/d3d4ebaced09d1d12e2e71b731f06e64bb763e39))
+
+
 ## v1.0.3 (2025-10-23)
 
 ### Bug Fixes
