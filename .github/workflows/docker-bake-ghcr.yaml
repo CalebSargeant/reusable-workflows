@@ -126,6 +126,11 @@ jobs:
             org.opencontainers.image.title=${{ inputs.image_name }}
             org.opencontainers.image.description=${{ github.repository }} ${{ inputs.image_name }}
 
+      - name: Set image name
+        id: image
+        run: |
+          echo "full_name=${{ github.repository_owner }}/${{ inputs.image_name }}" >> "$GITHUB_OUTPUT"
+
       - name: Build with Docker Bake
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
@@ -139,7 +144,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           REGISTRY: ${{ inputs.registry }}
-          IMAGE_NAME: ${{ github.repository_owner }}/${{ inputs.image_name }}
+          IMAGE_NAME: ${{ steps.image.outputs.full_name }}
           PLATFORMS: ${{ inputs.platforms }}
 
       - name: Generate SBOM
