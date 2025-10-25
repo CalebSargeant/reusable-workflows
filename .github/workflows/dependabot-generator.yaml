@@ -1,12 +1,16 @@
 # How to call this reusable workflow from another repository
 # ---------------------------------------------------------
-# Example: .github/workflows/dependabot-autobots.yaml
+# This workflow is designed as a reusable workflow (workflow_call).
+# Use it from any GitHub Actions workflow in another repository.
+#
+# Example: .github/workflows/dependabot-autobots.yaml (in caller repository)
 #
 # name: Dependabot Autobots
 # on:
-#   workflow_dispatch:
+#   workflow_dispatch:  # Manual trigger
 #   schedule:
-#     - cron: '17 4 * * *'
+#     - cron: '17 4 * * *'  # Daily at 04:17 UTC
+#
 # jobs:
 #   dependabot:
 #     uses: CalebSargeant/reusable-workflows/.github/workflows/dependabot-generator.yaml@main
@@ -15,16 +19,20 @@
 #       contents: write
 #       pull-requests: write
 #     secrets:
-#       APP_ID: ${{ secrets.APP_ID }}
-#       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-#   post:
+#       RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+#       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+#
+#   post:  # Optional: consume the outputs
 #     needs: dependabot
 #     runs-on: ubuntu-latest
 #     steps:
-#       - name: Print results
+#       - name: Print Autobots results
 #         run: |
-#           echo "state=${{ needs.dependabot.outputs.state }}"
-#           echo "ecosystems=${{ needs.dependabot.outputs.ecosystems }}"
+#           echo "Dependabot configuration state: ${{ needs.dependabot.outputs.state }}"
+#           echo "Detected ecosystems: ${{ needs.dependabot.outputs.ecosystems }}"
+#           # Output values:
+#           # - state: 'updated', 'unchanged', or 'skipped'
+#           # - ecosystems: comma-separated list (e.g., github-actions,npm,poetry)
 
 name: Autobots
 
@@ -92,7 +100,7 @@ jobs:
       # Gather repo metadata and default branch; skip archived/disabled repos
       - name: Get repository info
         id: repo-info
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           script: |
