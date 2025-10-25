@@ -140,7 +140,6 @@ jobs:
           set: |
             *.cache-from=type=gha,scope=${{ github.workflow }}
             *.cache-to=type=gha,mode=max,scope=${{ github.workflow }}
-            *.labels=${{ steps.meta.outputs.labels }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           REGISTRY: ${{ inputs.registry }}
