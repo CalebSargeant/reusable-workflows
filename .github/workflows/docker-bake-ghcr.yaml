@@ -63,7 +63,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
 
@@ -132,7 +132,7 @@ jobs:
           echo "full_name=${{ github.repository_owner }}/${{ inputs.image_name }}" >> "$GITHUB_OUTPUT"
 
       - name: Build with Docker Bake
-        uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
+        uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
           files: ${{ inputs.bake_file }}
           targets: ${{ inputs.push && github.event_name != 'pull_request' && inputs.push_target != '' && inputs.push_target || inputs.bake_target }}
@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload SBOM
         if: inputs.enable_sbom && inputs.push && github.event_name != 'pull_request'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: sbom-${{ inputs.image_name }}
           path: sbom.spdx.json
