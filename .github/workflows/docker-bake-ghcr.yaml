@@ -127,7 +127,7 @@ jobs:
             org.opencontainers.image.description=${{ github.repository }} ${{ inputs.image_name }}
 
       - name: Build with Docker Bake
-        uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
+        uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
           files: ${{ inputs.bake_file }}
           targets: ${{ inputs.push && github.event_name != 'pull_request' && inputs.push_target != '' && inputs.push_target || inputs.bake_target }}
