@@ -1,12 +1,16 @@
 # How to call this reusable workflow from another repository
 # ---------------------------------------------------------
-# Example: .github/workflows/dependabot-autobots.yaml
+# This workflow is designed as a reusable workflow (workflow_call).
+# Use it from any GitHub Actions workflow in another repository.
+#
+# Example: .github/workflows/dependabot-autobots.yaml (in caller repository)
 #
 # name: Dependabot Autobots
 # on:
-#   workflow_dispatch:
+#   workflow_dispatch:  # Manual trigger
 #   schedule:
-#     - cron: '17 4 * * *'
+#     - cron: '17 4 * * *'  # Daily at 04:17 UTC
+#
 # jobs:
 #   dependabot:
 #     uses: CalebSargeant/reusable-workflows/.github/workflows/dependabot-generator.yaml@main
@@ -17,14 +21,18 @@
 #     secrets:
 #       RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
 #       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-#   post:
+#
+#   post:  # Optional: consume the outputs
 #     needs: dependabot
 #     runs-on: ubuntu-latest
 #     steps:
-#       - name: Print results
+#       - name: Print Autobots results
 #         run: |
-#           echo "state=${{ needs.dependabot.outputs.state }}"
-#           echo "ecosystems=${{ needs.dependabot.outputs.ecosystems }}"
+#           echo "Dependabot configuration state: ${{ needs.dependabot.outputs.state }}"
+#           echo "Detected ecosystems: ${{ needs.dependabot.outputs.ecosystems }}"
+#           # Output values:
+#           # - state: 'updated', 'unchanged', or 'skipped'
+#           # - ecosystems: comma-separated list (e.g., github-actions,npm,poetry)
 
 name: Autobots
 
@@ -35,10 +43,10 @@ on:
   # Reusable workflow support
   workflow_call:
     secrets:
-      RELEASE_APP_ID:
+      APP_ID:
         description: 'GitHub App ID used to generate an installation token'
         required: false
-      RELEASE_APP_PRIVATE_KEY:
+      APP_PRIVATE_KEY:
         description: 'GitHub App private key (PEM)'
         required: false
     outputs:
@@ -71,10 +79,10 @@ jobs:
       # Authenticate as GitHub App (preferred)
       - name: Generate GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
         continue-on-error: true
 
       - name: Validate authentication
@@ -92,7 +100,7 @@ jobs:
       # Gather repo metadata and default branch; skip archived/disabled repos
       - name: Get repository info
         id: repo-info
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           script: |
@@ -119,7 +127,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.repo-info.outputs.skip != 'true'
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           ref: ${{ steps.repo-info.outputs.default_branch }}
           fetch-depth: 0
@@ -244,48 +252,29 @@ jobs:
           echo "ecosystems=${ECOS}" >> "$GITHUB_OUTPUT"
 
       # Commit and open/update a PR if changes were made
-      - name: Commit and open or update PR
-        id: create-pr
+      - name: Create or update PR
+        id: cpr
         if: steps.repo-info.outputs.skip != 'true' && steps.generate.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
-          DEFAULT_BRANCH: ${{ steps.repo-info.outputs.default_branch }}
-          ECOSYSTEMS: ${{ steps.generate.outputs.ecosystems }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          BRANCH="autobot/dependabot-config"
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          commit-message: "chore: configure Dependabot"
+          title: "chore: configure Dependabot"
+          body: |
+            This PR adds or updates .github/dependabot.yml based on the repository's detected ecosystems.
 
-          # Create/update branch
-          git fetch origin "${DEFAULT_BRANCH}" --depth=1
-          git checkout -B "${BRANCH}" "origin/${DEFAULT_BRANCH}"
-          git add .github/dependabot.yml
-          if git diff --cached --quiet; then
-            echo "No staged changes; nothing to commit."
-          else
-            git commit -m "chore: configure Dependabot"
-          fi
-          git push -u origin "${BRANCH}" --force-with-lease
+            - Generated by the reusable workflow: Autobots
+            - Idempotent: re-runs update this PR/branch rather than creating duplicates
+            - Includes: ${{ steps.generate.outputs.ecosystems }}
 
-          TITLE="chore: configure Dependabot"
-          BODY=$(cat <<PR
-          This PR adds or updates .github/dependabot.yml based on the repository's detected ecosystems.
-
-          - Generated by the reusable workflow: Autobots
-          - Idempotent: re-runs update this PR/branch rather than creating duplicates
-          - Includes: $ECOSYSTEMS
-
-          If you need to customize, commit to this branch; future runs will reconcile differences.
-          PR
-          )
-
-          # Re-use existing open PR if present
-          PR_NUM=$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number' || true)
-          if [[ -n "${PR_NUM}" ]]; then
-            gh pr edit "${PR_NUM}" --title "${TITLE}" --body "${BODY}"
-          else
-            gh pr create --base "${DEFAULT_BRANCH}" --head "${BRANCH}" --title "${TITLE}" --body "${BODY}" --draft=false
-          fi
+            If you need to customize, commit to this branch; future runs will reconcile differences.
+          branch: autobot/dependabot-config
+          base: ${{ steps.repo-info.outputs.default_branch }}
+          add-paths: |
+            .github/dependabot.yml
+          author: github-actions[bot] <actions@users.noreply.github.com>
+          committer: github-actions[bot] <actions@users.noreply.github.com>
+          draft: false
 
       # Set final outcome and write a human-readable summary
       - name: Summarize result
@@ -308,7 +297,11 @@ jobs:
             ECOS="${{ steps.generate.outputs.ecosystems }}"; echo "- Ecosystems: ${ECOS:-none}";
             if [[ "${RESULT}" == "updated" ]]; then
               echo "- Changes: .github/dependabot.yml created/updated";
-              echo "- PR: existing or newly created from branch 'autobot/dependabot-config'";
+              if [[ -n "${{ steps.cpr.outputs.pull-request-url }}" ]]; then
+                echo "- PR: ${{ steps.cpr.outputs.pull-request-url }}";
+              else
+                echo "- PR: existing or newly created from branch 'autobot/dependabot-config'";
+              fi
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

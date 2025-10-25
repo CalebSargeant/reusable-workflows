@@ -1,0 +1,173 @@
+name: Reusable Docker Bake to GHCR
+
+on:
+  workflow_call:
+    inputs:
+      bake_file:
+        description: 'Path to docker-bake file'
+        required: false
+        type: string
+        default: 'docker-bake.hcl'
+      bake_target:
+        description: 'Docker Bake target to build'
+        required: false
+        type: string
+        default: 'default'
+      push_target:
+        description: 'Docker Bake target for push (if different from build target)'
+        required: false
+        type: string
+        default: ''
+      image_name:
+        description: 'Docker image name (without registry/org prefix)'
+        required: true
+        type: string
+      platforms:
+        description: 'Target platforms (comma-separated)'
+        required: false
+        type: string
+        default: 'linux/amd64,linux/arm64'
+      push:
+        description: 'Push images to registry'
+        required: false
+        type: boolean
+        default: true
+      registry:
+        description: 'Container registry'
+        required: false
+        type: string
+        default: 'ghcr.io'
+      runner:
+        description: 'GitHub runner to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      enable_sbom:
+        description: 'Generate and upload SBOM'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      registry_username:
+        required: false
+      registry_password:
+        required: false
+
+jobs:
+  build:
+    name: Build and Push with Docker Bake
+    runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.registry_username || github.actor }}
+          password: ${{ secrets.registry_password || secrets.GITHUB_TOKEN }}
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION="latest"
+          EVENT_NAME="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]] && [[ -n "${{ github.event.inputs.version || '' }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${EVENT_NAME}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [[ "${REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          elif [[ "${EVENT_NAME}" == "repository_dispatch" ]]; then
+            VERSION="${{ github.event.client_payload.version || 'latest' }}"
+          elif [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            VERSION="pr-${{ github.event.pull_request.number }}"
+          elif [[ "${REF}" == "refs/heads/main" ]] || [[ "${REF}" == "refs/heads/master" ]]; then
+            VERSION="latest"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            VERSION="${BRANCH//\//-}"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${VERSION}"
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          images: |
+            ${{ inputs.registry }}/${{ github.repository_owner }}/${{ inputs.image_name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-
+          labels: |
+            org.opencontainers.image.title=${{ inputs.image_name }}
+            org.opencontainers.image.description=${{ github.repository }} ${{ inputs.image_name }}
+
+      - name: Build with Docker Bake
+        uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
+        with:
+          files: ${{ inputs.bake_file }}
+          targets: ${{ inputs.push && github.event_name != 'pull_request' && inputs.push_target != '' && inputs.push_target || inputs.bake_target }}
+          push: ${{ inputs.push && github.event_name != 'pull_request' }}
+          set: |
+            *.cache-from=type=gha,scope=${{ github.workflow }}
+            *.cache-to=type=gha,mode=max,scope=${{ github.workflow }}
+            *.labels=${{ steps.meta.outputs.labels }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REGISTRY: ${{ inputs.registry }}
+          IMAGE_NAME: ${{ github.repository_owner }}/${{ inputs.image_name }}
+          PLATFORMS: ${{ inputs.platforms }}
+
+      - name: Generate SBOM
+        if: inputs.enable_sbom && inputs.push && github.event_name != 'pull_request'
+        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84 # v0.20.9
+        with:
+          image: ${{ inputs.registry }}/${{ github.repository_owner }}/${{ inputs.image_name }}:${{ steps.version.outputs.version }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        if: inputs.enable_sbom && inputs.push && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: sbom-${{ inputs.image_name }}
+          path: sbom.spdx.json
+          retention-days: 90
+
+      - name: Summary
+        if: inputs.push && github.event_name != 'pull_request'
+        run: |
+          echo "### Docker Image Built and Pushed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ inputs.registry }}/${{ github.repository_owner }}/${{ inputs.image_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Platforms:** \`${{ inputs.platforms }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ inputs.registry }}/${{ github.repository_owner }}/${{ inputs.image_name }}:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
