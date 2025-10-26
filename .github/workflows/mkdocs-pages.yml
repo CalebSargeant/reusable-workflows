@@ -63,17 +63,22 @@ jobs:
           cache: pip
 
       - name: Install dependencies
+        env:
+          REQUIREMENTS_FILE: ${{ inputs.requirements-file }}
+          EXTRA_PACKAGES: ${{ inputs.extra-packages }}
         run: |
           set -e
-          if [ -n "${{ inputs.requirements-file }}" ]; then
-            pip install -r "${{ inputs.requirements-file }}"
+          if [ -n "$REQUIREMENTS_FILE" ]; then
+            pip install -r "$REQUIREMENTS_FILE"
           else
-            pip install ${{ inputs.extra-packages }}
+            pip install $EXTRA_PACKAGES
           fi
 
       - name: Build MkDocs
         working-directory: ${{ inputs.working-directory }}
-        run: ${{ inputs.build-command }}
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+        run: $BUILD_COMMAND
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
