@@ -131,6 +131,15 @@ jobs:
         run: |
           echo "full_name=${{ github.repository_owner }}/${{ inputs.image_name }}" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare tags for bake
+        id: bake-tags
+        run: |
+          TAGS="${{ steps.meta.outputs.tags }}"
+          # Convert newline-separated tags to JSON array format
+          TAGS_JSON=$(echo "$TAGS" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "tags=${TAGS_JSON}" >> "$GITHUB_OUTPUT"
+          echo "Tags for bake: ${TAGS_JSON}"
+
       - name: Build with Docker Bake
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
@@ -140,7 +149,7 @@ jobs:
           set: |
             *.cache-from=type=gha,scope=${{ github.workflow }}
             *.cache-to=type=gha,mode=max,scope=${{ github.workflow }}
-            *.tags=${{ steps.meta.outputs.tags }}
+            *.tags=${{ steps.bake-tags.outputs.tags }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           REGISTRY: ${{ inputs.registry }}
