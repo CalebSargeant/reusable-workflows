@@ -1,0 +1,85 @@
+name: Reusable — MkDocs → GitHub Pages
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version
+        required: false
+        type: string
+        default: '3.x'
+      working-directory:
+        description: Directory to run MkDocs from ('.' for repo root)
+        required: false
+        type: string
+        default: '.'
+      requirements-file:
+        description: Path to requirements file (leave blank to auto-install)
+        required: false
+        type: string
+        default: ''
+      extra-packages:
+        description: Space-separated pip packages if no requirements file
+        required: false
+        type: string
+        default: 'mkdocs mkdocs-material mkdocs-redirects mkdocs-git-revision-date-localized-plugin pymdown-extensions'
+      build-command:
+        description: MkDocs build command
+        required: false
+        type: string
+        default: 'mkdocs build --strict'
+      site-dir:
+        description: Output directory (relative to working-directory)
+        required: false
+        type: string
+        default: 'site'
+    outputs:
+      page_url:
+        description: Deployed Pages URL
+        value: ${{ jobs.build_deploy.outputs.page_url }}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build_deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          set -e
+          if [ -n "${{ inputs.requirements-file }}" ]; then
+            pip install -r "${{ inputs.requirements-file }}"
+          else
+            pip install ${{ inputs.extra-packages }}
+          fi
+
+      - name: Build MkDocs
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ inputs.working-directory }}/${{ inputs.site-dir }}
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
