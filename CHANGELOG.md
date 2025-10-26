@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.0.8 (2025-10-26)
+
+
+## v1.0.7 (2025-10-26)
+
+### Bug Fixes
+
+- Add missing tags output configuration to Docker Bake workflow
+  ([`5f07bab`](https://github.com/CalebSargeant/reusable-workflows/commit/5f07bab5d699cc95a7c664bbc8b950998d3776b6))
+
+
 ## v1.0.6 (2025-10-25)
 
 
