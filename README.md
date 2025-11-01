@@ -263,6 +263,141 @@ To use this workflow, you need to create a Slack bot:
 4. Copy the Bot User OAuth Token and store it as `SLACK_BOT_TOKEN` secret in your GitHub repository
 5. Find your channel ID by right-clicking on the channel in Slack and selecting "Copy link" - the ID is the last part of the URL
 
+## MkDocs GitHub Pages Deployment
+
+A reusable workflow for building MkDocs documentation sites (including Material theme) and deploying them to GitHub Pages.
+
+### Features
+
+- Build and deploy MkDocs sites to GitHub Pages using official GitHub Actions
+- Support for MkDocs Material theme and popular plugins
+- Configurable for monorepos with custom working directories
+- Flexible dependency management (requirements file or auto-install)
+- Exposes the deployed site URL as an output
+- Automatic artifact upload and deployment
+- Concurrent deployment protection
+
+### Usage
+
+#### Prerequisites
+
+1. In your repository, go to **Settings → Pages → Build and deployment**
+2. Set the source to **GitHub Actions**
+
+#### Basic Setup
+
+Create `.github/workflows/docs.yml` in your repository:
+
+```yaml
+name: Docs
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  docs:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/mkdocs-pages.yml@main
+```
+
+#### With Custom Configuration
+
+```yaml
+name: Docs
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  docs:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/mkdocs-pages.yml@main
+    with:
+      python-version: '3.12'
+      working-directory: 'docs-src'
+      requirements-file: 'requirements-docs.txt'
+      build-command: 'mkdocs build --strict'
+      site-dir: 'site'
+```
+
+#### Multi-Job Setup with URL Output
+
+```yaml
+name: Docs
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  docs:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/mkdocs-pages.yml@main
+    with:
+      working-directory: '.'
+      extra-packages: 'mkdocs mkdocs-material'
+
+  notify:
+    needs: docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print deployed URL
+        run: echo "Documentation deployed to ${{ needs.docs.outputs.page_url }}"
+```
+
+### Inputs
+
+| Name | Description | Required | Default |
+|------|-------------|----------|---------|
+| `python-version` | Python version to use | No | `3.x` |
+| `working-directory` | Directory to run MkDocs from | No | `.` |
+| `requirements-file` | Path to requirements file (overrides extra-packages) | No | `` |
+| `extra-packages` | Space-separated pip packages if no requirements file | No | `mkdocs mkdocs-material mkdocs-redirects mkdocs-git-revision-date-localized-plugin pymdown-extensions` |
+| `build-command` | MkDocs build command | No | `mkdocs build --strict` |
+| `site-dir` | Output directory relative to working-directory | No | `site` |
+
+### Outputs
+
+| Name | Description |
+|------|-------------|
+| `page_url` | The deployed GitHub Pages URL |
+
+### Requirements
+
+- Your repository must contain a valid `mkdocs.yml` file at the specified working directory
+- If you don't provide a `requirements-file`, the workflow will automatically install common MkDocs packages
+- The GitHub Pages source must be set to "GitHub Actions" in your repository settings
+
+### Example Repository Structure
+
+```
+your-repo/
+├── mkdocs.yml           # MkDocs configuration
+├── docs/
+│   ├── index.md        # Documentation pages
+│   └── ...
+└── .github/
+    └── workflows/
+        └── docs.yml     # Workflow calling this reusable workflow
+```
+
+For monorepos or custom structures:
+
+```
+your-repo/
+├── docs-src/
+│   ├── mkdocs.yml      # MkDocs configuration
+│   ├── docs/
+│   │   ├── index.md
+│   │   └── ...
+│   └── requirements.txt
+└── .github/
+    └── workflows/
+        └── docs.yml     # Use working-directory: 'docs-src'
+```
+
 ## Terragrunt Plan/Apply Workflow
 
 A reusable workflow for running Terragrunt plan and apply operations with AWS authentication.
