@@ -137,8 +137,7 @@ jobs:
       - name: Export Buildx vars
         if: inputs.buildx_vars != ''
         run: |
-          printf '%s
-' "${{ inputs.buildx_vars }}" >> "$GITHUB_ENV"
+          printf '%s\n' "${{ inputs.buildx_vars }}" >> "$GITHUB_ENV"
 
       - name: Build with Docker Bake
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
