@@ -137,8 +137,7 @@ jobs:
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
           files: ${{ inputs.bake_file }}
-          targets: ${{ inputs.push && github.event_name != 'pull_request' && inputs.push_target != '' && inputs.push_target || inputs.bake_target }}
-          push: ${{ inputs.push && github.event_name != 'pull_request' }}
+          targets: ${{ (inputs.push && github.event_name != 'pull_request' && inputs.push_target != '') && inputs.push_target || inputs.bake_target }}
           set: |
             *.cache-from=type=gha,scope=${{ github.workflow }}
             *.cache-to=type=gha,mode=max,scope=${{ github.workflow }}
