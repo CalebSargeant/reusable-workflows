@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.11 (2025-12-02)
+
+### Bug Fixes
+
+- Add force_version input and streamline Docker Bake workflow
+  ([`34d4465`](https://github.com/CalebSargeant/reusable-workflows/commit/34d4465641423b1cc9b086e69a0a468d1d15ed48))
+
+
 ## v1.0.10 (2025-10-26)
 
 
