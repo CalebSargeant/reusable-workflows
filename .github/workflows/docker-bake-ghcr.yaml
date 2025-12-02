@@ -47,6 +47,11 @@ on:
         required: false
         type: boolean
         default: false
+      force_version:
+        description: 'Force specific version (overrides automatic detection)'
+        required: false
+        type: string
+        default: ''
     secrets:
       registry_username:
         required: false
@@ -72,13 +77,18 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --debug
 
       - name: Log in to Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ${{ inputs.registry }}
-          username: ${{ secrets.registry_username || github.actor }}
-          password: ${{ secrets.registry_password || secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine version
         id: version
@@ -104,6 +114,11 @@ jobs:
             VERSION="${BRANCH//\//-}"
           fi
 
+          # Override with force_version if provided
+          if [[ -n "${{ inputs.force_version }}" ]]; then
+            VERSION="${{ inputs.force_version }}"
+          fi
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Building version: ${VERSION}"
 
@@ -114,66 +129,39 @@ jobs:
           IMAGE_LOWER=$(echo "${{ inputs.image_name }}" | tr '[:upper:]' '[:lower:]')
           echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
-        with:
-          images: |
-            ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable={{is_default_branch}}
-            type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix={{branch}}-
-          labels: |
-            org.opencontainers.image.title=${{ inputs.image_name }}
-            org.opencontainers.image.description=${{ github.repository }} ${{ inputs.image_name }}
-
       - name: Build with Docker Bake
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
-          files: ${{ inputs.bake_file }}
-          targets: ${{ inputs.push && github.event_name != 'pull_request' && inputs.push_target != '' && inputs.push_target || inputs.bake_target }}
+          files: |
+            ${{ inputs.bake_file }}
+            ${{ steps.meta.outputs.bake-file }}
+          targets: ${{ (inputs.push && github.event_name != 'pull_request' && inputs.push_target != '') && inputs.push_target || inputs.bake_target }}
           push: ${{ inputs.push && github.event_name != 'pull_request' }}
           set: |
-            *.cache-from=type=gha,scope=${{ github.workflow }}
-            *.cache-to=type=gha,mode=max,scope=${{ github.workflow }}
+            *.cache-from=type=registry,ref=${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:buildcache
+            *.cache-from=type=gha,scope=buildkit-${{ inputs.image_name }}
+            *.cache-from=type=gha,scope=buildkit-${{ inputs.image_name }}-${{ github.ref_name }}
+            *.cache-to=type=gha,mode=max,scope=buildkit-${{ inputs.image_name }}-${{ github.ref_name }}
+            *.cache-to=type=inline
+            ${{ inputs.push && github.event_name != 'pull_request' && format('*.cache-to=type=registry,ref={0}/{1}:buildcache,mode=max', inputs.registry, steps.image.outputs.full_name) || '' }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           REGISTRY: ${{ inputs.registry }}
           IMAGE_NAME: ${{ steps.image.outputs.full_name }}
           PLATFORMS: ${{ inputs.platforms }}
 
-      - name: Generate SBOM
-        if: inputs.enable_sbom && inputs.push && github.event_name != 'pull_request'
-        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84 # v0.20.9
-        with:
-          image: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
-          format: spdx-json
-          output-file: sbom.spdx.json
-
-      - name: Upload SBOM
-        if: inputs.enable_sbom && inputs.push && github.event_name != 'pull_request'
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: sbom-${{ inputs.image_name }}
-          path: sbom.spdx.json
-          retention-days: 90
-
-      - name: Summary
-        if: inputs.push && github.event_name != 'pull_request'
-        run: |
-          echo "### Docker Image Built and Pushed :rocket:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ inputs.registry }}/${{ steps.image.outputs.full_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Platforms:** \`${{ inputs.platforms }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Pull command:**" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+#      - name: Generate SBOM
+#        if: inputs.enable_sbom && inputs.push && github.event_name != 'pull_request'
+#        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84 # v0.20.9
+#        with:
+#          image: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
+#          format: spdx-json
+#          output-file: sbom.spdx.json
+#
+#      - name: Upload SBOM
+#        if: inputs.enable_sbom && inputs.push && github.event_name != 'pull_request'
+#        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+#        with:
+#          name: sbom-${{ inputs.image_name }}
+#          path: sbom.spdx.json
+#          retention-days: 90
