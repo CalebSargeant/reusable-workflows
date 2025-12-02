@@ -134,25 +134,12 @@ jobs:
           IMAGE_LOWER=$(echo "${{ inputs.image_name }}" | tr '[:upper:]' '[:lower:]')
           echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare bake args
-        id: bake_args
+      - name: Export build variables
+        if: inputs.buildx_vars != ''
         run: |
-          # Convert BUILDX_VAR_* format to bake --set format (*.args.VAR=value)
-          BAKE_ARGS=""
-          if [[ -n "${{ inputs.buildx_vars }}" ]]; then
-            while IFS='=' read -r key value; do
-              if [[ "$key" =~ ^BUILDX_VAR_(.+)$ ]]; then
-                VAR_NAME="${BASH_REMATCH[1]}"
-                BAKE_ARGS="${BAKE_ARGS}*.args.${VAR_NAME}=${value}"$'\n'
-              fi
-            done <<< "${{ inputs.buildx_vars }}"
-          fi
-          # Use EOF delimiter to handle multiline
-          {
-            echo "bake_args<<EOF"
-            printf '%s' "$BAKE_ARGS"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          # Export each KEY=VALUE pair as environment variable for docker/bake-action
+          # Bake automatically picks up env vars matching variable names in the HCL file
+          printf '%s\n' "${{ inputs.buildx_vars }}" >> "$GITHUB_ENV"
 
       - name: Build with Docker Bake
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
@@ -169,7 +156,6 @@ jobs:
             *.cache-to=type=gha,mode=max,scope=buildkit-${{ inputs.image_name }}-${{ github.ref_name }}
             *.cache-to=type=inline
             ${{ inputs.push && github.event_name != 'pull_request' && format('*.cache-to=type=registry,ref={0}/{1}:buildcache,mode=max', inputs.registry, steps.image.outputs.full_name) || '' }}
-            ${{ steps.bake_args.outputs.bake_args }}
         env:
           VERSION: ${{ steps.version.outputs.version }}
           REGISTRY: ${{ inputs.registry }}
