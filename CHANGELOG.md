@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.0.17 (2025-12-10)
+
+### Bug Fixes
+
+- Update semantic-release action and simplify configuration
+  ([`19051a3`](https://github.com/CalebSargeant/reusable-workflows/commit/19051a3ce0f31cfb07667bdb58fc208c3dc30f22))
+
+
 ## v1.0.16 (2025-12-02)
 
 
