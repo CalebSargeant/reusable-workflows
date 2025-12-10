@@ -170,11 +170,10 @@ jobs:
 
       - name: Python Semantic Release
         id: release
-        uses: python-semantic-release/python-semantic-release@4d4cb0ab842247caea1963132c242c62aab1e4d5 # v10.4.1
+        uses: python-semantic-release/python-semantic-release@02f2a5c74dbb6aa2989f10fc4af12cd8e6bf025f # v10.5.2
         with:
           github_token: ${{ steps.app-token.outputs.token || secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           git_committer_name: "github-actions[bot]"
-          git_committer_email: "actions@users.noreply.pinkroccade.ghe.com"
           # Force version bump for manual dispatch
           force: ${{ inputs.bump }}
           # Skip build since this is infrastructure, not a Python package
@@ -187,5 +186,3 @@ jobs:
           commit: true
           # Working directory
           directory: ${{ inputs.working_directory }}
-          # Increase verbosity for debugging
-          verbosity: 2
