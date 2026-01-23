@@ -19,9 +19,10 @@ on:
         type: string
         default: ''
       image_name:
-        description: 'Docker image name (without registry/org prefix)'
-        required: true
+        description: 'Docker image name (without registry/org prefix). Defaults to bake_target if not specified.'
+        required: false
         type: string
+        default: ''
       platforms:
         description: 'Target platforms (comma-separated)'
         required: false
@@ -131,7 +132,12 @@ jobs:
         id: image
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_LOWER=$(echo "${{ inputs.image_name }}" | tr '[:upper:]' '[:lower:]')
+          # Use image_name if provided, otherwise fall back to bake_target
+          IMAGE_NAME="${{ inputs.image_name }}"
+          if [ -z "${IMAGE_NAME}" ]; then
+            IMAGE_NAME="${{ inputs.bake_target }}"
+          fi
+          IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
           echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
 
       - name: Export build variables
