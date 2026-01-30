@@ -5,44 +5,26 @@ name: Reusable Docker Bake to GHCR
 #   PR merged -> Semantic Release creates release
 #   Release published -> Promotes pr-<number> image to release version (no rebuild!)
 #
-# Example caller workflow:
+# Example caller workflow (simple - auto-promotion on release):
 #
 #   name: Docker Build
 #   on:
 #     pull_request:
+#       branches: [main]
+#       types: [opened, synchronize, reopened]
 #     release:
 #       types: [published]
 #
 #   jobs:
-#     # Extract PR number from release (for promotion)
-#     get-pr-number:
-#       if: github.event_name == 'release'
-#       runs-on: ubuntu-latest
-#       outputs:
-#         pr_number: ${{ steps.pr.outputs.number }}
-#       steps:
-#         - name: Get PR number from release
-#           id: pr
-#           uses: actions/github-script@v7
-#           with:
-#             script: |
-#               // Get the merge commit SHA from the release target
-#               const { data: commits } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-#                 owner: context.repo.owner,
-#                 repo: context.repo.repo,
-#                 commit_sha: context.payload.release.target_commitish
-#               });
-#               const pr = commits.find(c => c.merged_at);
-#               core.setOutput('number', pr ? pr.number : '');
-#
 #     docker:
-#       needs: [get-pr-number]
-#       if: always() && (github.event_name == 'pull_request' || needs.get-pr-number.outputs.pr_number != '')
 #       uses: your-org/reusable-workflows/.github/workflows/docker-bake-ghcr.yaml@main
 #       with:
-#         bake_target: my-app
-#         # For releases: promote the PR image instead of rebuilding
-#         promote_pr_number: ${{ needs.get-pr-number.outputs.pr_number || '' }}
+#         image_name: my-app
+#       secrets: inherit
+#
+# The workflow automatically:
+#   - Builds pr-<number> images on pull request events
+#   - On release: extracts the PR number from the release tag and promotes all bake target images
 
 on:
   workflow_call:
@@ -82,6 +64,11 @@ on:
         required: false
         type: string
         default: ''
+      auto_promote_on_release:
+        description: 'Automatically promote PR image on release events. Extracts PR number from release commit.'
+        required: false
+        type: boolean
+        default: true
       registry:
         description: 'Container registry'
         required: false
@@ -117,6 +104,9 @@ on:
       image_with_tag:
         description: 'The full image name with tag'
         value: ${{ jobs.ci-build.outputs.image_with_tag || jobs.promote.outputs.image_with_tag || jobs.build.outputs.image_with_tag }}
+      pr_number:
+        description: 'The PR number that was promoted (if applicable)'
+        value: ${{ jobs.get-pr-number.outputs.pr_number }}
     secrets:
       registry_username:
         required: false
@@ -124,6 +114,61 @@ on:
         required: false
 
 jobs:
+  # Extract PR number from release tag (for auto-promotion)
+  get-pr-number:
+    name: Get PR Number
+    if: github.event_name == 'release' && inputs.auto_promote_on_release && inputs.promote_pr_number == ''
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      pr_number: ${{ steps.pr.outputs.number }}
+    steps:
+      - name: Get PR number from release
+        id: pr
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            // Get the commit SHA for this release tag
+            const tagName = context.payload.release.tag_name;
+            console.log(`Release tag: ${tagName}`);
+
+            const { data: ref } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `tags/${tagName}`
+            });
+
+            let commitSha = ref.object.sha;
+            console.log(`Tag ref SHA: ${commitSha}, type: ${ref.object.type}`);
+
+            // If the tag points to a tag object (annotated tag), get the commit it points to
+            if (ref.object.type === 'tag') {
+              const { data: tag } = await github.rest.git.getTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_sha: ref.object.sha
+              });
+              commitSha = tag.object.sha;
+              console.log(`Annotated tag points to commit: ${commitSha}`);
+            }
+
+            // Find PRs associated with this commit
+            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: commitSha
+            });
+
+            console.log(`Found ${prs.length} PRs associated with commit ${commitSha}`);
+            prs.forEach(pr => console.log(`  PR #${pr.number}: merged_at=${pr.merged_at}`));
+
+            const mergedPr = prs.find(pr => pr.merged_at);
+            if (mergedPr) {
+              console.log(`Using merged PR #${mergedPr.number}`);
+              core.setOutput('number', mergedPr.number);
+            } else {
+              core.setFailed(`Could not find merged PR for commit ${commitSha}`);
+            }
+
   ci-build:
     name: Container Build (CI)
     if: github.event_name == 'pull_request' && inputs.promote_pr_number == ''
@@ -231,7 +276,8 @@ jobs:
 
   promote:
     name: Promote PR Image
-    if: inputs.promote_pr_number != ''
+    needs: [get-pr-number]
+    if: always() && (inputs.promote_pr_number != '' || needs.get-pr-number.outputs.pr_number != '')
     runs-on: ${{ inputs.runner }}
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -240,6 +286,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      PR_NUMBER: ${{ inputs.promote_pr_number || needs.get-pr-number.outputs.pr_number }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -307,7 +355,7 @@ jobs:
           fi
           IMAGE_BASE_LOWER=$(echo "${IMAGE_BASE}" | tr '[:upper:]' '[:lower:]')
 
-          PR_NUMBER="${{ inputs.promote_pr_number }}"
+          PR_NUMBER="${{ env.PR_NUMBER }}"
           TARGET_VERSION="${{ steps.version.outputs.version }}"
           REGISTRY="${{ inputs.registry }}"
           BAKE_FILE="${{ inputs.bake_file }}"
