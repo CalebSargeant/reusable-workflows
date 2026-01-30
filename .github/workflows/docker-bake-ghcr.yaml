@@ -1,5 +1,49 @@
 name: Reusable Docker Bake to GHCR
 
+# Workflow Strategy:
+#   PR opened/updated -> CI builds & pushes pr-<number> image
+#   PR merged -> Semantic Release creates release
+#   Release published -> Promotes pr-<number> image to release version (no rebuild!)
+#
+# Example caller workflow:
+#
+#   name: Docker Build
+#   on:
+#     pull_request:
+#     release:
+#       types: [published]
+#
+#   jobs:
+#     # Extract PR number from release (for promotion)
+#     get-pr-number:
+#       if: github.event_name == 'release'
+#       runs-on: ubuntu-latest
+#       outputs:
+#         pr_number: ${{ steps.pr.outputs.number }}
+#       steps:
+#         - name: Get PR number from release
+#           id: pr
+#           uses: actions/github-script@v7
+#           with:
+#             script: |
+#               // Get the merge commit SHA from the release target
+#               const { data: commits } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+#                 owner: context.repo.owner,
+#                 repo: context.repo.repo,
+#                 commit_sha: context.payload.release.target_commitish
+#               });
+#               const pr = commits.find(c => c.merged_at);
+#               core.setOutput('number', pr ? pr.number : '');
+#
+#     docker:
+#       needs: [get-pr-number]
+#       if: always() && (github.event_name == 'pull_request' || needs.get-pr-number.outputs.pr_number != '')
+#       uses: your-org/reusable-workflows/.github/workflows/docker-bake-ghcr.yaml@main
+#       with:
+#         bake_target: my-app
+#         # For releases: promote the PR image instead of rebuilding
+#         promote_pr_number: ${{ needs.get-pr-number.outputs.pr_number || '' }}
+
 on:
   workflow_call:
     inputs:
@@ -34,7 +78,7 @@ on:
         type: boolean
         default: true
       promote_pr_number:
-        description: 'If set, skip build and promote pr-<number> image to the calculated version tag'
+        description: 'PR number to promote. When set, skips build and re-tags pr-<number> image with the release version.'
         required: false
         type: string
         default: ''
@@ -63,6 +107,16 @@ on:
         required: false
         type: string
         default: ''
+    outputs:
+      version:
+        description: 'The version tag that was built or promoted'
+        value: ${{ jobs.ci-build.outputs.version || jobs.promote.outputs.version || jobs.build.outputs.version }}
+      image:
+        description: 'The full image name (without tag)'
+        value: ${{ jobs.ci-build.outputs.image || jobs.promote.outputs.image || jobs.build.outputs.image }}
+      image_with_tag:
+        description: 'The full image name with tag'
+        value: ${{ jobs.ci-build.outputs.image_with_tag || jobs.promote.outputs.image_with_tag || jobs.build.outputs.image_with_tag }}
     secrets:
       registry_username:
         required: false
@@ -72,8 +126,12 @@ on:
 jobs:
   ci-build:
     name: Container Build (CI)
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && inputs.promote_pr_number == ''
     runs-on: ${{ inputs.runner }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.image.outputs.full_name }}
+      image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
     permissions:
       contents: read
       packages: write
@@ -175,10 +233,20 @@ jobs:
     name: Promote PR Image
     if: inputs.promote_pr_number != ''
     runs-on: ${{ inputs.runner }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.image.outputs.full_name }}
+      image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
     permissions:
       contents: read
       packages: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
       - name: Set image name
         id: image
         run: |
@@ -230,17 +298,63 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Promote PR image tag
+      - name: Get bake targets and promote images
         run: |
-          SOURCE_TAG="${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:pr-${{ inputs.promote_pr_number }}"
-          TARGET_TAG="${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}"
-          echo "Promoting ${SOURCE_TAG} -> ${TARGET_TAG}"
-          docker buildx imagetools create --tag "${TARGET_TAG}" "${SOURCE_TAG}"
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_BASE="${{ inputs.image_name }}"
+          if [ -z "${IMAGE_BASE}" ]; then
+            IMAGE_BASE="${{ inputs.bake_target }}"
+          fi
+          IMAGE_BASE_LOWER=$(echo "${IMAGE_BASE}" | tr '[:upper:]' '[:lower:]')
+
+          PR_NUMBER="${{ inputs.promote_pr_number }}"
+          TARGET_VERSION="${{ steps.version.outputs.version }}"
+          REGISTRY="${{ inputs.registry }}"
+          BAKE_FILE="${{ inputs.bake_file }}"
+          BAKE_TARGET="${{ inputs.bake_target }}"
+
+          # Get the list of targets from docker bake
+          echo "Getting targets from bake file: ${BAKE_FILE}, target: ${BAKE_TARGET}"
+          TARGETS=$(docker buildx bake -f "${BAKE_FILE}" "${BAKE_TARGET}" --print 2>/dev/null | jq -r '.target | keys[]')
+
+          if [ -z "${TARGETS}" ]; then
+            echo "No targets found, falling back to single image promotion"
+            TARGETS="${BAKE_TARGET}"
+          fi
+
+          echo "Found targets: ${TARGETS}"
+
+          # Promote each target's image
+          for TARGET in ${TARGETS}; do
+            # The image name is typically image_name-target (e.g., fortivpn-gateway-cookie)
+            # Check if target is the same as bake_target (single image) or different (multi-image)
+            if [ "${TARGET}" = "${BAKE_TARGET}" ] || [ "${TARGET}" = "default" ]; then
+              FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}"
+            else
+              FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}-${TARGET}"
+            fi
+
+            SOURCE_TAG="${REGISTRY}/${FULL_IMAGE}:pr-${PR_NUMBER}"
+            TARGET_TAG="${REGISTRY}/${FULL_IMAGE}:${TARGET_VERSION}"
+            LATEST_TAG="${REGISTRY}/${FULL_IMAGE}:latest"
+
+            echo "Promoting ${SOURCE_TAG} -> ${TARGET_TAG}"
+            if docker buildx imagetools create --tag "${TARGET_TAG}" --tag "${LATEST_TAG}" "${SOURCE_TAG}"; then
+              echo "✓ Successfully promoted ${FULL_IMAGE}"
+            else
+              echo "✗ Failed to promote ${FULL_IMAGE}"
+              exit 1
+            fi
+          done
 
   build:
     name: Build and Push with Docker Bake
     if: github.event_name != 'pull_request' && inputs.promote_pr_number == ''
     runs-on: ${{ inputs.runner }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.image.outputs.full_name }}
+      image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
     permissions:
       contents: read
       packages: write
