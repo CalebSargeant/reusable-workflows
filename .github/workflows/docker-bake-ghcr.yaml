@@ -538,7 +538,7 @@ jobs:
 
   build:
     name: Build and Push with Docker Bake
-    if: github.event_name != 'pull_request' && inputs.promote_pr_number == ''
+    if: github.event_name != 'pull_request' && inputs.promote_pr_number == '' && !(github.event_name == 'release' && inputs.auto_promote_on_release)
     runs-on: ${{ inputs.runner }}
     outputs:
       version: ${{ steps.version.outputs.version }}
