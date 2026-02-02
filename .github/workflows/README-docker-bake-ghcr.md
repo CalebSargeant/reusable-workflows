@@ -1,6 +1,77 @@
-# Docker Bake to GHCR - Reusable Workflow
+# Docker Bake to GHCR - Reusable Workflows
 
-Reusable GitHub Actions workflow for building multi-platform Docker images using docker-bake and pushing to GitHub Container Registry (GHCR).
+Reusable GitHub Actions workflows for building multi-platform Docker images using docker-bake and pushing to GitHub Container Registry (GHCR).
+
+## Available Workflows
+
+| Workflow | Description |
+|----------|-------------|
+| `docker-bake-ghcr.yaml` | Full-featured build workflow for all scenarios |
+| `docker-bake-ghcr-pr.yaml` | Dedicated PR build workflow (tags with `pr-<number>`) |
+| `docker-bake-ghcr-promote.yaml` | Promotes PR images to release versions (no rebuild) |
+
+## PR → Semantic Release → Promote Pattern
+
+The recommended pattern for production deployments:
+
+```
+PR Created/Updated
+       ↓
+docker-bake-ghcr-pr.yaml builds and tags with pr-<number>
+       ↓
+PR Merged → semantic-release.yaml creates release tag
+       ↓
+docker-bake-ghcr-promote.yaml retags pr-<number> to release version
+```
+
+### Example Implementation
+
+Create a single workflow file that handles the entire flow:
+
+```yaml
+name: Container Build and Release
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  # Build container on PR open/update
+  build-pr:
+    if: github.event.pull_request.merged != true
+    uses: calebsargeant/reusable-workflows/.github/workflows/docker-bake-ghcr-pr.yaml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: my-app
+      bake_target: my-app
+
+  # On PR merge: create semantic release
+  semantic-release:
+    if: github.event.pull_request.merged == true
+    uses: calebsargeant/reusable-workflows/.github/workflows/semantic-release.yaml@main
+    permissions:
+      contents: write
+      id-token: write
+    secrets:
+      SEMANTIC_RELEASE_APP_ID: ${{ secrets.SEMANTIC_RELEASE_APP_ID }}
+      SEMANTIC_RELEASE_APP_PRIVATE_KEY: ${{ secrets.SEMANTIC_RELEASE_APP_PRIVATE_KEY }}
+
+  # Promote PR image to release version
+  promote:
+    needs: semantic-release
+    if: needs.semantic-release.outputs.released == 'true'
+    uses: calebsargeant/reusable-workflows/.github/workflows/docker-bake-ghcr-promote.yaml@main
+    permissions:
+      contents: read
+      packages: write
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+      version: ${{ needs.semantic-release.outputs.version }}
+      image_name: my-app
+      also_tag_latest: true
+```
 
 ## Features
 
@@ -11,6 +82,7 @@ Reusable GitHub Actions workflow for building multi-platform Docker images using
 - 📦 **GHCR optimized** - Defaults to ghcr.io with GITHUB_TOKEN authentication
 - 🔒 **Optional SBOM** - Generate Software Bill of Materials for security scanning
 - 📊 **Job summaries** - Clear build output with pull commands
+- 🔄 **PR → Promote pattern** - Build once in PR, promote to release tag on merge (no rebuild)
 
 ## Usage
 
@@ -263,5 +335,58 @@ Check that:
 
 ## Related Workflows
 
+- [docker-bake-ghcr-pr.yaml](./docker-bake-ghcr-pr.yaml) - Dedicated PR build workflow
+- [docker-bake-ghcr-promote.yaml](./docker-bake-ghcr-promote.yaml) - Promote PR images to release versions
 - [semantic-release.yaml](./semantic-release.yaml) - Automated versioning
 - [terragrunt-plan-cost-apply.yaml](./terragrunt-plan-cost-apply.yaml) - Infrastructure deployment
+
+---
+
+## docker-bake-ghcr-pr.yaml
+
+Dedicated workflow for building container images during pull requests.
+
+### Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `bake_file` | Path to docker-bake file | No | `docker-bake.hcl` |
+| `bake_target` | Docker Bake target to build | No | `default` |
+| `image_name` | Image name without registry/org prefix | No | Falls back to `bake_target` |
+| `platforms` | Target platforms (comma-separated) | No | `linux/amd64,linux/arm64` |
+| `push` | Push images to registry | No | `true` |
+| `registry` | Container registry URL | No | `ghcr.io` |
+| `runner` | GitHub runner to use | No | `ubuntu-latest` |
+| `buildx_vars` | Additional environment variables | No | `''` |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `pr_number` | The PR number used for tagging |
+| `image_tag` | The full image tag that was pushed |
+| `version` | The version tag (`pr-<number>`) |
+
+---
+
+## docker-bake-ghcr-promote.yaml
+
+Promotes (retags) a PR container image to a release version without rebuilding.
+
+### Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `pr_number` | The PR number whose image should be promoted | **Yes** | - |
+| `version` | The version tag to apply (e.g., `v1.2.0`) | **Yes** | - |
+| `image_name` | Docker image name (without registry/org prefix) | **Yes** | - |
+| `registry` | Container registry URL | No | `ghcr.io` |
+| `runner` | GitHub runner to use | No | `ubuntu-latest` |
+| `also_tag_latest` | Also tag the image as `latest` | No | `false` |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `source_tag` | The source image tag (`pr-<number>`) |
+| `target_tag` | The target image tag (release version) |

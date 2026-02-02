@@ -1,0 +1,109 @@
+name: Reusable Docker Promote PR Image
+
+# Promotes (retags) a PR container image to a release version
+# Part of the PR → Semantic Release → Promote workflow pattern:
+#   1. PR Created/Updated → docker-bake-ghcr-pr.yaml builds and tags with pr-<number>
+#   2. PR Merged → semantic-release creates release tag
+#   3. After release → This workflow retags the PR image with the release version
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'The PR number whose image should be promoted'
+        required: true
+        type: string
+      version:
+        description: 'The version tag to apply (e.g., v1.2.0 from semantic-release)'
+        required: true
+        type: string
+      image_name:
+        description: 'Docker image name (without registry/org prefix)'
+        required: true
+        type: string
+      registry:
+        description: 'Container registry'
+        required: false
+        type: string
+        default: 'ghcr.io'
+      runner:
+        description: 'GitHub runner to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      also_tag_latest:
+        description: 'Also tag the image as latest'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      registry_password:
+        description: 'Registry password/token (defaults to GITHUB_TOKEN)'
+        required: false
+    outputs:
+      source_tag:
+        description: 'The source image tag (pr-<number>)'
+        value: ${{ jobs.promote.outputs.source_tag }}
+      target_tag:
+        description: 'The target image tag (release version)'
+        value: ${{ jobs.promote.outputs.target_tag }}
+
+jobs:
+  promote:
+    name: Promote PR Image to Release
+    runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      source_tag: ${{ steps.tags.outputs.source_tag }}
+      target_tag: ${{ steps.tags.outputs.target_tag }}
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.registry_password || secrets.GITHUB_TOKEN }}
+
+      - name: Calculate image tags
+        id: tags
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_LOWER=$(echo "${{ inputs.image_name }}" | tr '[:upper:]' '[:lower:]')
+          FULL_NAME="${OWNER_LOWER}/${IMAGE_LOWER}"
+          
+          SOURCE_TAG="${{ inputs.registry }}/${FULL_NAME}:pr-${{ inputs.pr_number }}"
+          TARGET_TAG="${{ inputs.registry }}/${FULL_NAME}:${{ inputs.version }}"
+          LATEST_TAG="${{ inputs.registry }}/${FULL_NAME}:latest"
+          
+          echo "source_tag=${SOURCE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "target_tag=${TARGET_TAG}" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          echo "full_name=${FULL_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify source image exists
+        run: |
+          echo "Checking if source image exists: ${{ steps.tags.outputs.source_tag }}"
+          if ! docker buildx imagetools inspect "${{ steps.tags.outputs.source_tag }}" > /dev/null 2>&1; then
+            echo "::error::Source image not found: ${{ steps.tags.outputs.source_tag }}"
+            echo "Make sure the PR was built with docker-bake-ghcr-pr.yaml before merging."
+            exit 1
+          fi
+          echo "✓ Source image found"
+
+      - name: Promote PR image to release version
+        run: |
+          echo "Promoting ${{ steps.tags.outputs.source_tag }} → ${{ steps.tags.outputs.target_tag }}"
+          docker buildx imagetools create --tag "${{ steps.tags.outputs.target_tag }}" "${{ steps.tags.outputs.source_tag }}"
+          echo "✓ Successfully promoted to ${{ steps.tags.outputs.target_tag }}"
+
+      - name: Also tag as latest
+        if: inputs.also_tag_latest
+        run: |
+          echo "Also tagging as latest: ${{ steps.tags.outputs.latest_tag }}"
+          docker buildx imagetools create --tag "${{ steps.tags.outputs.latest_tag }}" "${{ steps.tags.outputs.source_tag }}"
+          echo "✓ Successfully tagged as latest"
