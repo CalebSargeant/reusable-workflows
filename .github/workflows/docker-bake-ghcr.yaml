@@ -3,7 +3,9 @@ name: Reusable Docker Bake to GHCR
 # Workflow Strategy:
 #   PR opened/updated -> CI builds & pushes pr-<number> image
 #   PR merged -> Semantic Release creates release
-#   Release published -> Promotes pr-<number> image to release version (no rebuild!)
+#   Release published -> Checks if pr-<number> image is current:
+#     - If PR image digest matches latest: Promotes to release version (no rebuild!)
+#     - If PR image is outdated: Skips promotion and rebuilds fresh image
 #
 # Example caller workflow (simple - auto-promotion on release):
 #
@@ -24,7 +26,8 @@ name: Reusable Docker Bake to GHCR
 #
 # The workflow automatically:
 #   - Builds pr-<number> images on pull request events
-#   - On release: extracts the PR number from the release tag and promotes all bake target images
+#   - On release: extracts the PR number and checks if the PR image is up-to-date
+#   - Promotes PR image if current, or rebuilds if outdated
 
 on:
   workflow_call:
