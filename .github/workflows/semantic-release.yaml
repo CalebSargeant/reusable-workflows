@@ -9,7 +9,7 @@
 
 #1. Create a GitHub App:
 #◦  Go to GitHub Settings → Developer settings → GitHub Apps → New App
-#◦  Name: "Platform1 Release Bot"
+#◦  Name: "Org Release Bot"
 #◦  Homepage URL: Your organization URL
 #◦  Permissions:
 #▪  Repository permissions:
@@ -26,16 +26,16 @@
 #
 #Add Secrets to Your Repository
 #
-#1. Go to your repository: https://github.com/platform1/platform1-infra
+#1. Go to your repository: https://github.com/org/repo
 #2. Click Settings → Secrets and variables → Actions
 #3. Click "New repository secret" and add these two secrets:
 #
 #Secret 1:
-#•  Name: RELEASE_APP_ID
+#•  Name: SEMANTIC_RELEASE_APP_ID
 #•  Value: 2019620
 #
 #Secret 2:
-#•  Name: RELEASE_APP_PRIVATE_KEY
+#•  Name: SEMANTIC_RELEASE_APP_PRIVATE_KEY
 #•  Value: Copy and paste the entire private key contents:
 
 name: Semantic Release
@@ -59,6 +59,16 @@ on:
           - patch
           - minor
           - major
+      prerelease:
+        description: 'Create a pre-release'
+        required: false
+        default: false
+        type: boolean
+      prerelease_token:
+        description: 'Pre-release identifier (e.g., alpha, beta, rc)'
+        required: false
+        default: 'rc'
+        type: string
   workflow_call:
     inputs:
       bump:
@@ -66,6 +76,16 @@ on:
         required: false
         type: string
         default: ''
+      prerelease:
+        description: 'Create a pre-release'
+        required: false
+        type: boolean
+        default: false
+      prerelease_token:
+        description: 'Pre-release identifier (e.g., alpha, beta, rc)'
+        required: false
+        type: string
+        default: 'rc'
       python_version:
         description: 'Python version to use'
         required: false
@@ -87,13 +107,13 @@ on:
         description: "The Git tag for the release"
         value: ${{ jobs.semantic-release.outputs.tag }}
     secrets:
-      RELEASE_TOKEN:
+      SEMANTIC_RELEASE_TOKEN:
         description: 'GitHub token with permissions to push to protected branches'
         required: false
-      APP_ID:
+      SEMANTIC_RELEASE_APP_ID:
         description: 'GitHub App ID for authentication'
         required: false
-      APP_PRIVATE_KEY:
+      SEMANTIC_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for authentication'
         required: false
 
@@ -118,20 +138,20 @@ jobs:
     steps:
       - name: Generate GitHub App Token
         id: app-token
-        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.SEMANTIC_RELEASE_APP_ID }}
+          private-key: ${{ secrets.SEMANTIC_RELEASE_APP_PRIVATE_KEY }}
         continue-on-error: true
-          
+
       - name: Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0  # Full history needed for semantic release
           # Use GitHub App token, PAT, or default GITHUB_TOKEN
-          token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      
+          token: ${{ steps.app-token.outputs.token || secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
       - name: Validate required secrets
         id: validate-secrets
         env:
@@ -142,21 +162,21 @@ jobs:
           if [[ "${APP_TOKEN_OUTCOME}" == "failure" ]]; then
             echo "❌ ERROR: GitHub App token generation failed!"
             echo "Please configure authentication secrets:"
-            echo "  1. APP_ID + APP_PRIVATE_KEY (GitHub App authentication)"
-            echo "  2. OR RELEASE_TOKEN (Personal Access Token)"
+            echo "  1. SEMANTIC_RELEASE_APP_ID + SEMANTIC_RELEASE_APP_PRIVATE_KEY (GitHub App authentication)"
+            echo "  2. OR SEMANTIC_RELEASE_TOKEN (Personal Access Token)"
             echo ""
             echo "Instructions:"
             echo "  - Go to repository Settings → Secrets and variables → Actions"
             echo "  - Click 'New repository secret' and add the required secret"
             exit 1
           fi
-          
+
           if [[ "${APP_TOKEN_OUTCOME}" == "success" ]]; then
             echo "✅ GitHub App authentication configured"
           else
             echo "ℹ️ Using RELEASE_TOKEN or GITHUB_TOKEN for authentication"
           fi
-          
+
       - name: Force branch to workflow sha
         run: |
           git reset --hard ${{ github.sha }}
@@ -170,13 +190,15 @@ jobs:
 
       - name: Python Semantic Release
         id: release
-        uses: python-semantic-release/python-semantic-release@4d4cb0ab842247caea1963132c242c62aab1e4d5 # v10.4.1
+        uses: python-semantic-release/python-semantic-release@02f2a5c74dbb6aa2989f10fc4af12cd8e6bf025f # v10.5.2
         with:
-          github_token: ${{ steps.app-token.outputs.token || secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token || secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           git_committer_name: "github-actions[bot]"
-          git_committer_email: "actions@users.noreply.github.com"
           # Force version bump for manual dispatch
           force: ${{ inputs.bump }}
+          # Pre-release configuration
+          prerelease: ${{ inputs.prerelease }}
+          prerelease_token: ${{ inputs.prerelease_token }}
           # Skip build since this is infrastructure, not a Python package
           build: false
           # Enable changelog generation
@@ -187,62 +209,3 @@ jobs:
           commit: true
           # Working directory
           directory: ${{ inputs.working_directory }}
-          # Increase verbosity for debugging
-          verbosity: 2
-
-      - name: Output release info
-        if: steps.release.outputs.released == 'true'
-        run: |
-          echo "🎉 New release published: ${{ steps.release.outputs.tag }}"
-          echo "📝 Release notes available at: ${{ steps.release.outputs.link }}"
-          echo "📦 This is a deployment version tag for the infrastructure"
-          echo "🐳 Docker images will be built and pushed by the docker-release workflow"
-          echo "ℹ️ To build Docker images, go to Actions > Docker Release Build and run manually or wait for the release event"
-          
-
-# Caller Workflow Example:
-#name: Semantic Release
-#
-#on:
-#  push:
-#    branches:
-#      - main      # Production releases only
-#    paths-ignore:
-#      - 'dockerfiles/**'  # Docker changes don't trigger releases
-#      - '**.md'           # Documentation changes don't trigger releases
-#      - '.github/workflows/docker-*.yaml'  # Docker workflow changes don't trigger releases
-#  workflow_dispatch:
-#    inputs:
-#      bump:
-#        description: 'Version bump type'
-#        required: false
-#        default: 'patch'
-#        type: choice
-#        options:
-#          - patch
-#          - minor
-#          - major
-#
-#jobs:
-#  semantic-release:
-#    name: Semantic Release
-#    uses: tengen-systems/platform1-workflows/.github/workflows/semantic-release.yaml@main
-#    with:
-#      bump: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.bump || '' }}
-#      working_directory: '.'
-#    secrets:
-#      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-#
-#  post-release:
-#    name: Post Release Actions
-#    runs-on: ubuntu-latest
-#    needs: semantic-release
-#    if: needs.semantic-release.outputs.released == 'true'
-#    steps:
-#      - name: Output release info
-#        run: |
-#          echo "🎉 New release published: ${{ needs.semantic-release.outputs.tag }}"
-#          echo "📝 Version: ${{ needs.semantic-release.outputs.version }}"
-#          echo "📦 This is a deployment version tag for the infrastructure"
-#          echo "🐳 Docker images will be built and pushed by the docker-release workflow"
-#          echo "ℹ️ To build Docker images, go to Actions > Docker Release Build and run manually or wait for the release event"
