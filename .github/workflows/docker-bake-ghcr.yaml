@@ -544,7 +544,7 @@ jobs:
             PR_DIGEST=$(docker buildx imagetools inspect "${SOURCE_TAG}" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || echo "")
             
             if [ -z "${PR_DIGEST}" ]; then
-              echo "⚠️  PR image ${SOURCE_TAG} not found!"
+              echo "⚠️  PR #${PR_NUMBER} image ${SOURCE_TAG} not found!"
               echo "⚠️  A fresh image build is required."
               NEEDS_REBUILD=true
               break
@@ -595,7 +595,7 @@ jobs:
             TARGET_TAG="${REGISTRY}/${FULL_IMAGE}:${TARGET_VERSION}"
             LATEST_TAG="${REGISTRY}/${FULL_IMAGE}:latest"
 
-            echo "Promoting ${SOURCE_TAG} -> ${TARGET_TAG} + latest"
+            echo "Promoting ${SOURCE_TAG} -> ${TARGET_TAG}"
             if docker buildx imagetools create --tag "${TARGET_TAG}" --tag "${LATEST_TAG}" "${SOURCE_TAG}"; then
               echo "✓ Successfully promoted ${FULL_IMAGE}"
             else
@@ -606,7 +606,7 @@ jobs:
 
   build:
     name: Build and Push with Docker Bake
-    needs: [promote]
+    needs: [get-pr-number, promote]
     if: |
       always() && (
         (github.event_name != 'pull_request' && inputs.promote_pr_number == '' && !(github.event_name == 'release' && inputs.auto_promote_on_release))
