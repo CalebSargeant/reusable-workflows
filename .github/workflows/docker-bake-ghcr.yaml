@@ -3,7 +3,9 @@ name: Reusable Docker Bake to GHCR
 # Workflow Strategy:
 #   PR opened/updated -> CI builds & pushes pr-<number> image
 #   PR merged -> Semantic Release creates release
-#   Release published -> Promotes pr-<number> image to release version (no rebuild!)
+#   Release published -> Checks if pr-<number> image is current:
+#     - If PR image digest matches latest: Promotes to release version (no rebuild!)
+#     - If PR image is outdated: Skips promotion and rebuilds fresh image
 #
 # Example caller workflow (simple - auto-promotion on release):
 #
@@ -24,7 +26,8 @@ name: Reusable Docker Bake to GHCR
 #
 # The workflow automatically:
 #   - Builds pr-<number> images on pull request events
-#   - On release: extracts the PR number from the release tag and promotes all bake target images
+#   - On release: extracts the PR number and checks if the PR image is up-to-date
+#   - Promotes PR image if current, or rebuilds if outdated
 
 on:
   workflow_call:
@@ -427,6 +430,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       image: ${{ steps.image.outputs.full_name }}
       image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
+      needs_rebuild: ${{ steps.promote.outputs.needs_rebuild }}
     permissions:
       contents: read
       packages: write
@@ -491,6 +495,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get bake targets and promote images
+        id: promote
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE_BASE="${{ inputs.image_name }}"
@@ -515,6 +520,66 @@ jobs:
           fi
 
           echo "Found targets: ${TARGETS}"
+
+          # Track if any image is outdated
+          NEEDS_REBUILD=false
+
+          # Check if PR images are up-to-date with latest before promoting
+          for TARGET in ${TARGETS}; do
+            # The image name is typically image_name-target (e.g., fortivpn-gateway-cookie)
+            # Check if target is the same as bake_target (single image) or different (multi-image)
+            if [ "${TARGET}" = "${BAKE_TARGET}" ] || [ "${TARGET}" = "default" ]; then
+              FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}"
+            else
+              FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}-${TARGET}"
+            fi
+
+            SOURCE_TAG="${REGISTRY}/${FULL_IMAGE}:pr-${PR_NUMBER}"
+            LATEST_TAG="${REGISTRY}/${FULL_IMAGE}:latest"
+
+            # Check if PR image is up-to-date with latest
+            echo "Checking if PR image ${SOURCE_TAG} is up-to-date with latest..."
+            
+            # Get digest of PR image
+            PR_DIGEST=$(docker buildx imagetools inspect "${SOURCE_TAG}" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || echo "")
+            
+            if [ -z "${PR_DIGEST}" ]; then
+              echo "⚠️  PR #${PR_NUMBER} image ${SOURCE_TAG} not found!"
+              echo "⚠️  A fresh image build is required."
+              NEEDS_REBUILD=true
+              break
+            fi
+            
+            # Get digest of current latest image (if it exists)
+            LATEST_DIGEST=$(docker buildx imagetools inspect "${LATEST_TAG}" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || echo "")
+            
+            # Determine if PR image is current
+            if [ -z "${LATEST_DIGEST}" ]; then
+              echo "No existing latest tag found - PR image will be promoted"
+            elif [ "${PR_DIGEST}" = "${LATEST_DIGEST}" ]; then
+              echo "✓ PR image digest matches latest digest - up to date"
+            else
+              echo "⚠️  PR image digest (${PR_DIGEST}) differs from latest digest (${LATEST_DIGEST})"
+              echo "⚠️  PR image is outdated and must not be promoted."
+              echo "⚠️  A fresh image build is required for release ${TARGET_VERSION}."
+              NEEDS_REBUILD=true
+              break
+            fi
+          done
+
+          # Set output flag
+          echo "needs_rebuild=${NEEDS_REBUILD}" >> "$GITHUB_OUTPUT"
+
+          # Exit early if rebuild is needed
+          if [ "${NEEDS_REBUILD}" = true ]; then
+            echo ""
+            echo "=========================================="
+            echo "⚠️  PROMOTION SKIPPED"
+            echo "=========================================="
+            echo "PR image is outdated. The build job will create a fresh image."
+            echo "=========================================="
+            exit 0
+          fi
 
           # Promote each target's image
           for TARGET in ${TARGETS}; do
@@ -541,7 +606,12 @@ jobs:
 
   build:
     name: Build and Push with Docker Bake
-    if: github.event_name != 'pull_request' && inputs.promote_pr_number == '' && !(github.event_name == 'release' && inputs.auto_promote_on_release)
+    needs: [get-pr-number, promote]
+    if: |
+      always() && (
+        (github.event_name != 'pull_request' && inputs.promote_pr_number == '' && !(github.event_name == 'release' && inputs.auto_promote_on_release))
+        || needs.promote.outputs.needs_rebuild == 'true'
+      )
     runs-on: ${{ inputs.runner }}
     outputs:
       version: ${{ steps.version.outputs.version }}
