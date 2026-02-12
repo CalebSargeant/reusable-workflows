@@ -1,5 +1,31 @@
 name: Reusable Docker Bake to GHCR
 
+# Workflow Strategy:
+#   PR opened/updated -> CI builds & pushes pr-<number> image
+#   PR merged -> Semantic Release creates release
+#   Release published -> Promotes pr-<number> image to release version (no rebuild!)
+#
+# Example caller workflow (simple - auto-promotion on release):
+#
+#   name: Docker Build
+#   on:
+#     pull_request:
+#       branches: [main]
+#       types: [opened, synchronize, reopened]
+#     release:
+#       types: [published]
+#
+#   jobs:
+#     docker:
+#       uses: your-org/reusable-workflows/.github/workflows/docker-bake-ghcr.yaml@main
+#       with:
+#         image_name: my-app
+#       secrets: inherit
+#
+# The workflow automatically:
+#   - Builds pr-<number> images on pull request events
+#   - On release: extracts the PR number from the release tag and promotes all bake target images
+
 on:
   workflow_call:
     inputs:
@@ -19,9 +45,10 @@ on:
         type: string
         default: ''
       image_name:
-        description: 'Docker image name (without registry/org prefix)'
-        required: true
+        description: 'Docker image name (without registry/org prefix). Defaults to bake_target if not specified.'
+        required: false
         type: string
+        default: ''
       platforms:
         description: 'Target platforms (comma-separated)'
         required: false
@@ -29,6 +56,16 @@ on:
         default: 'linux/amd64,linux/arm64'
       push:
         description: 'Push images to registry'
+        required: false
+        type: boolean
+        default: true
+      promote_pr_number:
+        description: 'PR number to promote. When set, skips build and re-tags pr-<number> image with the release version.'
+        required: false
+        type: string
+        default: ''
+      auto_promote_on_release:
+        description: 'Automatically promote PR image on release events. Extracts PR number from release commit.'
         required: false
         type: boolean
         default: true
@@ -57,6 +94,19 @@ on:
         required: false
         type: string
         default: ''
+    outputs:
+      version:
+        description: 'The version tag that was built or promoted'
+        value: ${{ jobs.ci-build.outputs.version || jobs.promote.outputs.version || jobs.build.outputs.version }}
+      image:
+        description: 'The full image name (without tag)'
+        value: ${{ jobs.ci-build.outputs.image || jobs.promote.outputs.image || jobs.build.outputs.image }}
+      image_with_tag:
+        description: 'The full image name with tag'
+        value: ${{ jobs.ci-build.outputs.image_with_tag || jobs.promote.outputs.image_with_tag || jobs.build.outputs.image_with_tag }}
+      pr_number:
+        description: 'The PR number that was promoted (if applicable)'
+        value: ${{ jobs.get-pr-number.outputs.pr_number }}
     secrets:
       registry_username:
         required: false
@@ -64,9 +114,439 @@ on:
         required: false
 
 jobs:
+  # Extract PR number from release tag (for auto-promotion)
+  get-pr-number:
+    name: Get PR Number
+    if: github.event_name == 'release' && inputs.auto_promote_on_release && inputs.promote_pr_number == ''
+    runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.pr.outputs.number }}
+    steps:
+      - name: Get PR number from release
+        id: pr
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            // Get the commit SHA for this release tag
+            const tagName = context.payload.release.tag_name;
+            console.log(`Release tag: ${tagName}`);
+
+            const { data: ref } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `tags/${tagName}`
+            });
+
+            let commitSha = ref.object.sha;
+            console.log(`Tag ref SHA: ${commitSha}, type: ${ref.object.type}`);
+
+            // If the tag points to a tag object (annotated tag), get the commit it points to
+            if (ref.object.type === 'tag') {
+              const { data: tag } = await github.rest.git.getTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_sha: ref.object.sha
+              });
+              commitSha = tag.object.sha;
+              console.log(`Annotated tag points to commit: ${commitSha}`);
+            }
+
+            // Get the commit details to check the message for PR number
+            const { data: commit } = await github.rest.git.getCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: commitSha
+            });
+            console.log(`Commit message: ${commit.message.split('\n')[0]}`);
+
+            // Strategy 1: Check commit message for PR number (GitHub merge commits include this)
+            // Matches: "Merge pull request #123" or "(#123)" patterns
+            const prMatch = commit.message.match(/(?:Merge pull request #|[Pp]ull [Rr]equest #|\(#)(\d+)/);
+            if (prMatch) {
+              const prNumber = prMatch[1];
+              console.log(`Found PR #${prNumber} in commit message`);
+              core.setOutput('number', prNumber);
+              return;
+            }
+
+            // Strategy 2: For squash merges, check the commit message body for PR reference
+            const bodyMatch = commit.message.match(/\(#(\d+)\)$/m);
+            if (bodyMatch) {
+              const prNumber = bodyMatch[1];
+              console.log(`Found PR #${prNumber} in commit message body`);
+              core.setOutput('number', prNumber);
+              return;
+            }
+
+            // Strategy 3: Try to find PRs associated with this commit directly
+            const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: commitSha
+            });
+
+            console.log(`Found ${prs.length} PRs associated with commit ${commitSha}`);
+            prs.forEach(pr => console.log(`  PR #${pr.number}: merged_at=${pr.merged_at}`));
+
+            const mergedPr = prs.find(pr => pr.merged_at);
+            if (mergedPr) {
+              console.log(`Using merged PR #${mergedPr.number}`);
+              core.setOutput('number', mergedPr.number);
+              return;
+            }
+
+            // Strategy 4: If this is a merge commit, check the second parent (the PR branch head)
+            if (commit.parents && commit.parents.length > 1) {
+              const prBranchSha = commit.parents[1].sha;
+              console.log(`Checking second parent (PR branch head): ${prBranchSha}`);
+
+              const { data: parentPrs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: prBranchSha
+              });
+
+              console.log(`Found ${parentPrs.length} PRs associated with parent commit ${prBranchSha}`);
+              const parentMergedPr = parentPrs.find(pr => pr.merged_at);
+              if (parentMergedPr) {
+                console.log(`Using merged PR #${parentMergedPr.number} from parent commit`);
+                core.setOutput('number', parentMergedPr.number);
+                return;
+              }
+            }
+
+            // Strategy 5: For semantic-release commits, walk up the parent chain
+            // Semantic-release creates commits like "chore(release): v1.0.14" after the PR is merged
+            // The parent of this commit is often the PR merge commit
+            if (commit.parents && commit.parents.length >= 1) {
+              console.log('Checking parent commits for semantic-release pattern...');
+
+              // Check up to 3 parent commits (usually just need 1-2)
+              let currentSha = commit.parents[0].sha;
+              for (let depth = 0; depth < 3; depth++) {
+                console.log(`Checking ancestor at depth ${depth + 1}: ${currentSha}`);
+
+                const { data: parentCommit } = await github.rest.git.getCommit({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  commit_sha: currentSha
+                });
+
+                console.log(`  Commit message: ${parentCommit.message.split('\n')[0]}`);
+
+                // Check if this commit message references a PR
+                const parentPrMatch = parentCommit.message.match(/(?:Merge pull request #|[Pp]ull [Rr]equest #|\(#)(\d+)/);
+                if (parentPrMatch) {
+                  const prNumber = parentPrMatch[1];
+                  console.log(`Found PR #${prNumber} in ancestor commit message`);
+                  core.setOutput('number', prNumber);
+                  return;
+                }
+
+                // Check for squash merge pattern in message body
+                const parentBodyMatch = parentCommit.message.match(/\(#(\d+)\)$/m);
+                if (parentBodyMatch) {
+                  const prNumber = parentBodyMatch[1];
+                  console.log(`Found PR #${prNumber} in ancestor commit message body`);
+                  core.setOutput('number', prNumber);
+                  return;
+                }
+
+                // Try to find PRs associated with this parent commit
+                const { data: ancestorPrs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  commit_sha: currentSha
+                });
+
+                console.log(`  Found ${ancestorPrs.length} PRs associated with this commit`);
+                const ancestorMergedPr = ancestorPrs.find(pr => pr.merged_at);
+                if (ancestorMergedPr) {
+                  console.log(`Using merged PR #${ancestorMergedPr.number} from ancestor commit`);
+                  core.setOutput('number', ancestorMergedPr.number);
+                  return;
+                }
+
+                // Move to the next parent
+                if (parentCommit.parents && parentCommit.parents.length > 0) {
+                  currentSha = parentCommit.parents[0].sha;
+                } else {
+                  break;
+                }
+              }
+            }
+
+            // Strategy 6: Search closed PRs by merge commit SHA
+            console.log('Searching recently merged PRs by merge commit SHA...');
+            const { data: recentPrs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 50
+            });
+
+            for (const pr of recentPrs) {
+              if (pr.merged_at && pr.merge_commit_sha === commitSha) {
+                console.log(`Found PR #${pr.number} with matching merge commit SHA`);
+                core.setOutput('number', pr.number);
+                return;
+              }
+            }
+
+            // Also check if any parent commit matches a PR merge commit
+            if (commit.parents) {
+              for (const parent of commit.parents) {
+                for (const pr of recentPrs) {
+                  if (pr.merged_at && pr.merge_commit_sha === parent.sha) {
+                    console.log(`Found PR #${pr.number} with parent matching merge commit SHA`);
+                    core.setOutput('number', pr.number);
+                    return;
+                  }
+                }
+              }
+            }
+
+            core.setFailed(`Could not find merged PR for commit ${commitSha}. Commit message: ${commit.message.split('\n')[0]}`);
+
+  ci-build:
+    name: Container Build (CI)
+    if: github.event_name == 'pull_request' && inputs.promote_pr_number == ''
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.image.outputs.full_name }}
+      image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --debug
+
+      - name: Log in to Container Registry
+        if: inputs.push
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION="latest"
+          EVENT_NAME="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]] && [[ -n "${{ github.event.inputs.version || '' }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${EVENT_NAME}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [[ "${REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          elif [[ "${EVENT_NAME}" == "repository_dispatch" ]]; then
+            VERSION="${{ github.event.client_payload.version || 'latest' }}"
+          elif [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            VERSION="pr-${{ github.event.pull_request.number }}"
+          elif [[ "${REF}" == "refs/heads/main" ]] || [[ "${REF}" == "refs/heads/master" ]]; then
+            VERSION="latest"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            VERSION="${BRANCH//\//-}"
+          fi
+
+          # Override with force_version if provided
+          if [[ -n "${{ inputs.force_version }}" ]]; then
+            VERSION="${{ inputs.force_version }}"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${VERSION}"
+
+      - name: Set image name
+        id: image
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          # Use image_name if provided, otherwise fall back to bake_target
+          IMAGE_NAME="${{ inputs.image_name }}"
+          if [ -z "${IMAGE_NAME}" ]; then
+            IMAGE_NAME="${{ inputs.bake_target }}"
+          fi
+          IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
+
+      - name: Export build variables
+        if: inputs.buildx_vars != ''
+        run: |
+          # Export each KEY=VALUE pair as environment variable for docker/bake-action
+          # Bake automatically picks up env vars matching variable names in the HCL file
+          printf '%s\n' "${{ inputs.buildx_vars }}" >> "$GITHUB_ENV"
+
+      - name: Build with Docker Bake
+        uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
+        with:
+          files: |
+            ${{ inputs.bake_file }}
+          targets: ${{ inputs.bake_target }}
+          push: ${{ inputs.push }}
+          set: |
+            *.cache-from=type=gha,scope=buildkit-${{ inputs.image_name }}
+            *.cache-from=type=gha,scope=buildkit-${{ inputs.image_name }}-${{ github.ref_name }}
+            *.cache-to=type=gha,mode=max,scope=buildkit-${{ inputs.image_name }}-${{ github.ref_name }}
+            *.cache-to=type=inline
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REGISTRY: ${{ inputs.registry }}
+          IMAGE_NAME: ${{ steps.image.outputs.full_name }}
+          PLATFORMS: ${{ inputs.platforms }}
+
+  promote:
+    name: Promote PR Image
+    needs: [get-pr-number]
+    if: always() && (inputs.promote_pr_number != '' || needs.get-pr-number.outputs.pr_number != '')
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.image.outputs.full_name }}
+      image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PR_NUMBER: ${{ inputs.promote_pr_number || needs.get-pr-number.outputs.pr_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Set image name
+        id: image
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          # Use image_name if provided, otherwise fall back to bake_target
+          IMAGE_NAME="${{ inputs.image_name }}"
+          if [ -z "${IMAGE_NAME}" ]; then
+            IMAGE_NAME="${{ inputs.bake_target }}"
+          fi
+          IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+          echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION="latest"
+          EVENT_NAME="${{ github.event_name }}"
+          REF="${{ github.ref }}"
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]] && [[ -n "${{ github.event.inputs.version || '' }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${EVENT_NAME}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [[ "${REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          elif [[ "${EVENT_NAME}" == "repository_dispatch" ]]; then
+            VERSION="${{ github.event.client_payload.version || 'latest' }}"
+          elif [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            VERSION="pr-${{ github.event.pull_request.number }}"
+          elif [[ "${REF}" == "refs/heads/main" ]] || [[ "${REF}" == "refs/heads/master" ]]; then
+            VERSION="latest"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            VERSION="${BRANCH//\//-}"
+          fi
+
+          # Override with force_version if provided
+          if [[ -n "${{ inputs.force_version }}" ]]; then
+            VERSION="${{ inputs.force_version }}"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Promoting version: ${VERSION}"
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get bake targets and promote images
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_BASE="${{ inputs.image_name }}"
+          if [ -z "${IMAGE_BASE}" ]; then
+            IMAGE_BASE="${{ inputs.bake_target }}"
+          fi
+          IMAGE_BASE_LOWER=$(echo "${IMAGE_BASE}" | tr '[:upper:]' '[:lower:]')
+
+          PR_NUMBER="${{ env.PR_NUMBER }}"
+          TARGET_VERSION="${{ steps.version.outputs.version }}"
+          REGISTRY="${{ inputs.registry }}"
+          BAKE_FILE="${{ inputs.bake_file }}"
+          BAKE_TARGET="${{ inputs.bake_target }}"
+
+          # Get the list of targets from docker bake
+          echo "Getting targets from bake file: ${BAKE_FILE}, target: ${BAKE_TARGET}"
+          TARGETS=$(docker buildx bake -f "${BAKE_FILE}" "${BAKE_TARGET}" --print 2>/dev/null | jq -r '.target | keys[]')
+
+          if [ -z "${TARGETS}" ]; then
+            echo "No targets found, falling back to single image promotion"
+            TARGETS="${BAKE_TARGET}"
+          fi
+
+          echo "Found targets: ${TARGETS}"
+
+          # Promote each target's image
+          for TARGET in ${TARGETS}; do
+            # The image name is typically image_name-target (e.g., fortivpn-gateway-cookie)
+            # Check if target is the same as bake_target (single image) or different (multi-image)
+            if [ "${TARGET}" = "${BAKE_TARGET}" ] || [ "${TARGET}" = "default" ]; then
+              FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}"
+            else
+              FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}-${TARGET}"
+            fi
+
+            SOURCE_TAG="${REGISTRY}/${FULL_IMAGE}:pr-${PR_NUMBER}"
+            TARGET_TAG="${REGISTRY}/${FULL_IMAGE}:${TARGET_VERSION}"
+            LATEST_TAG="${REGISTRY}/${FULL_IMAGE}:latest"
+
+            echo "Promoting ${SOURCE_TAG} -> ${TARGET_TAG}"
+            if docker buildx imagetools create --tag "${TARGET_TAG}" --tag "${LATEST_TAG}" "${SOURCE_TAG}"; then
+              echo "✓ Successfully promoted ${FULL_IMAGE}"
+            else
+              echo "✗ Failed to promote ${FULL_IMAGE}"
+              exit 1
+            fi
+          done
+
   build:
     name: Build and Push with Docker Bake
+    if: github.event_name != 'pull_request' && inputs.promote_pr_number == '' && !(github.event_name == 'release' && inputs.auto_promote_on_release)
     runs-on: ${{ inputs.runner }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.image.outputs.full_name }}
+      image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
     permissions:
       contents: read
       packages: write
@@ -131,7 +611,12 @@ jobs:
         id: image
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_LOWER=$(echo "${{ inputs.image_name }}" | tr '[:upper:]' '[:lower:]')
+          # Use image_name if provided, otherwise fall back to bake_target
+          IMAGE_NAME="${{ inputs.image_name }}"
+          if [ -z "${IMAGE_NAME}" ]; then
+            IMAGE_NAME="${{ inputs.bake_target }}"
+          fi
+          IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
           echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
 
       - name: Export build variables
