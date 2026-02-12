@@ -161,10 +161,13 @@ The workflow generates multiple tags using docker/metadata-action:
 
 ```yaml
 permissions:
-  contents: read      # Clone repository
-  packages: write     # Push to GHCR
-  id-token: write     # Optional: OIDC authentication
+  contents: read        # Clone repository
+  packages: write       # Push to GHCR
+  id-token: write       # Optional: OIDC authentication
+  pull-requests: read   # Required for auto-promotion on release events
 ```
+
+**Note:** When using `auto_promote_on_release: true` (the default) with release events, the workflow needs `pull-requests: read` permission to extract the PR number from the release commit history.
 
 ## Environment Variables
 
