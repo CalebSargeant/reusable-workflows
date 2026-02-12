@@ -59,6 +59,16 @@ on:
           - patch
           - minor
           - major
+      prerelease:
+        description: 'Create a pre-release'
+        required: false
+        default: false
+        type: boolean
+      prerelease_token:
+        description: 'Pre-release identifier (e.g., alpha, beta, rc)'
+        required: false
+        default: 'rc'
+        type: string
   workflow_call:
     inputs:
       bump:
@@ -66,6 +76,16 @@ on:
         required: false
         type: string
         default: ''
+      prerelease:
+        description: 'Create a pre-release'
+        required: false
+        type: boolean
+        default: false
+      prerelease_token:
+        description: 'Pre-release identifier (e.g., alpha, beta, rc)'
+        required: false
+        type: string
+        default: 'rc'
       python_version:
         description: 'Python version to use'
         required: false
@@ -176,6 +196,9 @@ jobs:
           git_committer_name: "github-actions[bot]"
           # Force version bump for manual dispatch
           force: ${{ inputs.bump }}
+          # Pre-release configuration
+          prerelease: ${{ inputs.prerelease }}
+          prerelease_token: ${{ inputs.prerelease_token }}
           # Skip build since this is infrastructure, not a Python package
           build: false
           # Enable changelog generation

@@ -2,6 +2,32 @@
 
 <!-- version list -->
 
+## v1.0.24 (2026-01-30)
+
+
+## v1.0.23 (2026-01-30)
+
+
+## v1.0.22 (2026-01-30)
+
+
+## v1.0.21 (2026-01-30)
+
+
+## v1.0.20 (2026-01-28)
+
+### Bug Fixes
+
+- Add support for promoting PR images in Docker workflow
+  ([`6e756fe`](https://github.com/CalebSargeant/reusable-workflows/commit/6e756fe251aecdde9b7203bf4daa4b9b07e3f6e8))
+
+
+## v1.0.19 (2026-01-25)
+
+
+## v1.0.18 (2026-01-23)
+
+
 ## v1.0.17 (2025-12-10)
 
 ### Bug Fixes
