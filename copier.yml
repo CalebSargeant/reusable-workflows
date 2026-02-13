@@ -9,19 +9,6 @@ _exclude:
   - "*.pyc"
   - "__pycache__"
   - ".git"
-  - ".github"  # Don't copy the template's own workflows, only from template/ dir
-  - ".gitignore"
-  - "copier.yml"
-  - ".copier-answers.yml"
-  - "pyproject.toml"
-  - ".pre-commit-config.yaml"
-  - "CHANGELOG.md"
-  - "LICENSE"
-  - "README.md"
-  - "COPIER.md"
-  - "install-auto-update.sh"
-  - "WARP.md"
-  - "INTERACTIVE-BUTTONS.md"
 
 # Only copy files from the template directory
 _subdirectory: "template"
