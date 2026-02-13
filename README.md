@@ -23,6 +23,91 @@
 
 This repository contains reusable GitHub Actions workflows that can be called from other repositories.
 
+## 📋 Using This Repository as a Template with Copier
+
+This repository can be used as a template to automatically set up workflows in your destination repositories using [Copier](https://copier.readthedocs.io/).
+
+### Quick Start with Copier
+
+#### Prerequisites
+
+Install Copier:
+```bash
+# Using pip
+pip install copier
+
+# Using pipx (recommended)
+pipx install copier
+
+# Using uv
+uv tool install copier
+```
+
+#### Generate Workflows in Your Repository
+
+```bash
+# Navigate to your destination repository
+cd /path/to/your/repo
+
+# Run Copier to generate workflows
+copier copy gh:CalebSargeant/reusable-workflows .
+
+# Answer the interactive prompts to configure your workflows
+```
+
+Copier will ask you questions to customize the generated workflows:
+- Which workflows you want to set up (MkDocs, Terragrunt, Docker, etc.)
+- Configuration details for each workflow
+- Whether you're using GitHub Enterprise Server (GHES)
+- Your organization and repository details
+
+#### Update Existing Workflows
+
+To update workflows that were previously generated:
+
+```bash
+cd /path/to/your/repo
+copier update
+```
+
+This will pull the latest changes from the template while preserving your custom configuration.
+
+### What Gets Generated
+
+Copier will create:
+- `.github/workflows/` - Workflow files for selected features
+- `WORKFLOWS-README.md` - Documentation for the generated workflows
+- `.copier-answers.yml` - Configuration tracking file (used for updates)
+
+### Supported Workflows
+
+The following workflows can be automatically configured:
+
+1. **MkDocs GitHub Pages** - Build and deploy documentation
+2. **Terragrunt Infrastructure** - Terraform/Terragrunt with AWS OIDC
+3. **Docker Build & Push** - Multi-platform container builds
+4. **Semantic Release** - Automated versioning and changelogs
+5. **Server Notifications** - Server update notifications via Slack
+
+### GHES Support
+
+This template supports GitHub Enterprise Server deployments. When generating workflows, you can specify:
+- GHES hostname
+- Custom source repository locations
+- Branch/tag references for reusable workflows
+
+### Benefits of Using Copier
+
+- **Single Source of Truth**: All workflows reference this repository
+- **Easy Updates**: Run `copier update` to get the latest workflow improvements
+- **Consistency**: Maintain consistent workflows across multiple repositories
+- **Customization**: Each repository can have its own configuration
+- **Version Control**: Track template versions with `.copier-answers.yml`
+
+### Manual Usage (Without Copier)
+
+If you prefer not to use Copier, you can still manually reference the reusable workflows. See the individual workflow sections below for manual setup instructions.
+
 ## 🚀 Auto-Update System with GitHub Actions & Slack Channel Routing
 
 A one-liner installer for server auto-updates with centralized Slack notifications via GitHub Actions, inspired by Pi-hole and k3s installers.

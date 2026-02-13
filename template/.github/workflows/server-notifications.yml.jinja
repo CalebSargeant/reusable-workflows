@@ -1,0 +1,52 @@
+{% if setup_server_notifications %}name: Server Update Notifications
+
+on:
+  repository_dispatch:
+    types: [server-update]
+  workflow_dispatch:
+    inputs:
+      server_name:
+        description: 'Server name'
+        required: true
+        type: string
+      status:
+        description: 'Update status (success, reboot_required, failed, skipped)'
+        required: true
+        type: choice
+        options:
+          - success
+          - reboot_required
+          - failed
+          - skipped
+      message:
+        description: 'Update details'
+        required: true
+        type: string
+      uptime:
+        description: 'Server uptime'
+        required: false
+        type: string
+      packages_updated:
+        description: 'Number of packages updated'
+        required: false
+        type: string
+      error_details:
+        description: 'Error details if failed'
+        required: false
+        type: string
+
+jobs:
+  send-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v2.0.0
+        with:
+          channel-id: '{{ slack_channel_id }}'
+          slack-message: |
+            Server: {% raw %}${{ github.event.inputs.server_name || github.event.client_payload.server_name }}{% endraw %}
+            Status: {% raw %}${{ github.event.inputs.status || github.event.client_payload.status }}{% endraw %}
+            Message: {% raw %}${{ github.event.inputs.message || github.event.client_payload.message }}{% endraw %}
+        env:
+          SLACK_BOT_TOKEN: {% raw %}${{ secrets.SLACK_BOT_TOKEN }}{% endraw %}
+{% endif %}

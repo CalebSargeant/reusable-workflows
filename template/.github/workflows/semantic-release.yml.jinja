@@ -1,0 +1,19 @@
+{% if setup_semantic_release %}name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    uses: {{ source_repo }}/.github/workflows/semantic-release.yaml@{{ source_branch }}
+    secrets:
+      GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+{% endif %}

@@ -1,0 +1,151 @@
+# Copier Template Configuration
+# This template allows you to set up GitHub Actions workflows that use
+# the reusable workflows from this repository as a single source of truth
+
+_min_copier_version: "9.0.0"
+
+# Exclude files that shouldn't be copied to destination repositories
+_exclude:
+  - "*.pyc"
+  - "__pycache__"
+  - ".git"
+  - ".github"  # Don't copy the template's own workflows, only from template/ dir
+  - ".gitignore"
+  - "copier.yml"
+  - ".copier-answers.yml"
+  - "pyproject.toml"
+  - ".pre-commit-config.yaml"
+  - "CHANGELOG.md"
+  - "LICENSE"
+  - "README.md"
+  - "COPIER.md"
+  - "install-auto-update.sh"
+  - "WARP.md"
+  - "INTERACTIVE-BUTTONS.md"
+
+# Only copy files from the template directory
+_subdirectory: "template"
+
+# Template metadata
+_templates_suffix: ".jinja"
+
+# Questions for the user
+github_org:
+  type: str
+  help: "GitHub organization or username where destination repo is located"
+  placeholder: "myorg"
+
+github_repo:
+  type: str
+  help: "Destination repository name (without org/user)"
+  placeholder: "my-repo"
+
+source_repo:
+  type: str
+  help: "Source repository for reusable workflows (org/repo format)"
+  default: "CalebSargeant/reusable-workflows"
+
+source_branch:
+  type: str
+  help: "Branch/tag to reference in the source repository"
+  default: "main"
+  choices:
+    - main
+    - staging
+    - "Specific tag (enter manually)"
+
+# Workflow selection
+setup_mkdocs:
+  type: bool
+  help: "Set up MkDocs GitHub Pages workflow?"
+  default: false
+
+setup_terragrunt:
+  type: bool
+  help: "Set up Terragrunt infrastructure workflow?"
+  default: false
+
+setup_docker_bake:
+  type: bool
+  help: "Set up Docker Bake GHCR workflow?"
+  default: false
+
+setup_semantic_release:
+  type: bool
+  help: "Set up Semantic Release workflow?"
+  default: false
+
+setup_server_notifications:
+  type: bool
+  help: "Set up server update notifications workflow?"
+  default: false
+
+# MkDocs configuration (only if setup_mkdocs is true)
+mkdocs_python_version:
+  type: str
+  help: "Python version for MkDocs"
+  default: "3.x"
+  when: "{{ setup_mkdocs }}"
+
+mkdocs_working_directory:
+  type: str
+  help: "MkDocs working directory"
+  default: "."
+  when: "{{ setup_mkdocs }}"
+
+# Terragrunt configuration (only if setup_terragrunt is true)
+terragrunt_working_dir:
+  type: str
+  help: "Terragrunt working directory"
+  default: "./terraform"
+  when: "{{ setup_terragrunt }}"
+
+terragrunt_aws_region:
+  type: str
+  help: "AWS region for Terragrunt"
+  default: "us-east-1"
+  when: "{{ setup_terragrunt }}"
+
+terragrunt_enable_infracost:
+  type: bool
+  help: "Enable Infracost for Terragrunt?"
+  default: true
+  when: "{{ setup_terragrunt }}"
+
+# Docker configuration (only if setup_docker_bake is true)
+docker_registry:
+  type: str
+  help: "Container registry (ghcr.io, docker.io, etc.)"
+  default: "ghcr.io"
+  when: "{{ setup_docker_bake }}"
+
+docker_image_name:
+  type: str
+  help: "Docker image name"
+  placeholder: "my-app"
+  when: "{{ setup_docker_bake }}"
+
+# Slack configuration (only if setup_server_notifications is true)
+slack_channel_id:
+  type: str
+  help: "Slack channel ID for notifications"
+  placeholder: "C1234567890"
+  when: "{{ setup_server_notifications }}"
+
+# GHES Support
+is_ghes:
+  type: bool
+  help: "Are you deploying to GitHub Enterprise Server (GHES)?"
+  default: false
+
+ghes_hostname:
+  type: str
+  help: "GHES hostname (e.g., github.mycompany.com)"
+  placeholder: "github.mycompany.com"
+  when: "{{ is_ghes }}"
+
+# Additional options
+include_readme:
+  type: bool
+  help: "Include a README with setup instructions?"
+  default: true
