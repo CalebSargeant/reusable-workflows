@@ -539,20 +539,20 @@ jobs:
 
             # Check if PR image is up-to-date with latest
             echo "Checking if PR image ${SOURCE_TAG} is up-to-date with latest..."
-            
+
             # Get digest of PR image
             PR_DIGEST=$(docker buildx imagetools inspect "${SOURCE_TAG}" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || echo "")
-            
+
             if [ -z "${PR_DIGEST}" ]; then
               echo "⚠️  PR #${PR_NUMBER} image ${SOURCE_TAG} not found!"
               echo "⚠️  A fresh image build is required."
               NEEDS_REBUILD=true
               break
             fi
-            
+
             # Get digest of current latest image (if it exists)
             LATEST_DIGEST=$(docker buildx imagetools inspect "${LATEST_TAG}" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || echo "")
-            
+
             # Determine if PR image is current
             if [ -z "${LATEST_DIGEST}" ]; then
               echo "No existing latest tag found - PR image will be promoted"

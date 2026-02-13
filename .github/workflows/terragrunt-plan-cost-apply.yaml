@@ -99,7 +99,7 @@ jobs:
         run: |
           # For AWS credentials
           echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> "$GITHUB_ENV"
-          
+
           # For Infracost
           if [[ -n "${{ secrets.INFRACOST_API_KEY }}" ]]; then
             echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> "$GITHUB_ENV"
@@ -182,7 +182,7 @@ jobs:
         run: |
           # For AWS credentials
           echo "TF_VAR_aws_role_to_assume=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> "$GITHUB_ENV"
-          
+
           # For Infracost
           if [[ -n "${{ secrets.INFRACOST_API_KEY }}" ]]; then
             echo "TF_VAR_infracost_api_key=${{ secrets.INFRACOST_API_KEY }}" >> "$GITHUB_ENV"
