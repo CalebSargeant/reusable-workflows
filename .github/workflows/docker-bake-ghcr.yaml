@@ -320,6 +320,9 @@ jobs:
     name: Container Build (CI)
     if: github.event_name == 'pull_request' && inputs.promote_pr_number == ''
     runs-on: ${{ inputs.runner }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     outputs:
       version: ${{ steps.version.outputs.version }}
       image: ${{ steps.image.outputs.full_name }}
