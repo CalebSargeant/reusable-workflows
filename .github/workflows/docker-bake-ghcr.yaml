@@ -532,8 +532,10 @@ jobs:
           # Check if PR images are up-to-date with latest before promoting
           for TARGET in ${TARGETS}; do
             # The image name is typically image_name-target (e.g., fortivpn-gateway-cookie)
-            # Check if target is the same as bake_target (single image) or different (multi-image)
-            if [ "${TARGET}" = "${BAKE_TARGET}" ] || [ "${TARGET}" = "default" ]; then
+            # For single target builds, use image_name directly
+            # For multi-target builds, append target name
+            TARGET_COUNT=$(echo "${TARGETS}" | wc -w)
+            if [ "${TARGET_COUNT}" -eq 1 ]; then
               FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}"
             else
               FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}-${TARGET}"
@@ -589,8 +591,10 @@ jobs:
           # Promote each target's image
           for TARGET in ${TARGETS}; do
             # The image name is typically image_name-target (e.g., fortivpn-gateway-cookie)
-            # Check if target is the same as bake_target (single image) or different (multi-image)
-            if [ "${TARGET}" = "${BAKE_TARGET}" ] || [ "${TARGET}" = "default" ]; then
+            # For single target builds, use image_name directly
+            # For multi-target builds, append target name
+            TARGET_COUNT=$(echo "${TARGETS}" | wc -w)
+            if [ "${TARGET_COUNT}" -eq 1 ]; then
               FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}"
             else
               FULL_IMAGE="${OWNER_LOWER}/${IMAGE_BASE_LOWER}-${TARGET}"
