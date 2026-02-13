@@ -59,12 +59,22 @@ copier --version
 cd /path/to/your/repository
 ```
 
-2. Run Copier:
+2. Run Copier to generate workflows from the latest version:
 ```bash
 copier copy gh:CalebSargeant/reusable-workflows .
 ```
 
 3. Answer the interactive prompts to configure your workflows.
+
+**For the latest stable release:**
+```bash
+copier copy --vcs-ref=v1.0.28 gh:CalebSargeant/reusable-workflows .
+```
+
+**For the latest development version:**
+```bash
+copier copy --vcs-ref=main gh:CalebSargeant/reusable-workflows .
+```
 
 ### Non-Interactive Usage
 
