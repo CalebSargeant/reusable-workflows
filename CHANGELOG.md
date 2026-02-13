@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.0.26 (2026-02-13)
+
+### Bug Fixes
+
+- Update semantic-release configuration in `pyproject.toml`
+  ([`73e868d`](https://github.com/CalebSargeant/reusable-workflows/commit/73e868d1a93b6450f89bddf313e7f8d95605f427))
+
+### Chores
+
+- **release**: 0.0.1
+  ([`a977831`](https://github.com/CalebSargeant/reusable-workflows/commit/a977831800ef046f28ba5d56ecb99221c5a18768))
+
+
 ## v0.0.1 (2026-02-13)
 
 - Initial Release
