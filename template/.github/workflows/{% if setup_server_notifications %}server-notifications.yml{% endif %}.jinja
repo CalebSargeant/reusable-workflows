@@ -1,4 +1,4 @@
-{% if setup_server_notifications %}name: Server Update Notifications
+name: Server Update Notifications
 
 on:
   repository_dispatch:
@@ -49,4 +49,3 @@ jobs:
             Message: {% raw %}${{ github.event.inputs.message || github.event.client_payload.message }}{% endraw %}
         env:
           SLACK_BOT_TOKEN: {% raw %}${{ secrets.SLACK_BOT_TOKEN }}{% endraw %}
-{% endif %}

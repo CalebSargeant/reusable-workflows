@@ -1,4 +1,4 @@
-{% if setup_semantic_release %}name: Semantic Release
+name: Semantic Release
 
 on:
   push:
@@ -16,4 +16,3 @@ jobs:
     uses: {{ source_repo }}/.github/workflows/semantic-release.yaml@{{ source_branch }}
     secrets:
       GH_TOKEN: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
-{% endif %}

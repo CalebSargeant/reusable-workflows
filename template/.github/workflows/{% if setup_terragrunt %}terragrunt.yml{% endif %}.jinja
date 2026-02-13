@@ -1,4 +1,4 @@
-{% if setup_terragrunt %}name: Deploy Infrastructure
+name: Deploy Infrastructure
 
 on:
   push:
@@ -33,4 +33,3 @@ jobs:
       AWS_ROLE_TO_ASSUME: {% raw %}${{ secrets.AWS_ROLE_ARN }}{% endraw %}
       INFRACOST_API_KEY: {% raw %}${{ secrets.INFRACOST_API_KEY }}{% endraw %}
       SOPS_AGE_KEY: {% raw %}${{ secrets.SOPS_AGE_KEY }}{% endraw %}
-{% endif %}

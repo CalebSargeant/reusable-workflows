@@ -1,4 +1,4 @@
-{% if setup_mkdocs %}name: Documentation
+name: Documentation
 
 on:
   push:
@@ -11,4 +11,3 @@ jobs:
     with:
       python-version: '{{ mkdocs_python_version }}'
       working-directory: '{{ mkdocs_working_directory }}'
-{% endif %}
