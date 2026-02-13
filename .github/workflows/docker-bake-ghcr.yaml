@@ -414,6 +414,8 @@ jobs:
           targets: ${{ inputs.bake_target }}
           push: ${{ inputs.push }}
           set: |
+            *.tags=${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
+            *.tags=${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:latest
             *.cache-from=type=gha,scope=buildkit-${{ inputs.image_name }}
             *.cache-from=type=gha,scope=buildkit-${{ inputs.image_name }}-${{ github.ref_name }}
             *.cache-to=type=gha,mode=max,scope=buildkit-${{ inputs.image_name }}-${{ github.ref_name }}
