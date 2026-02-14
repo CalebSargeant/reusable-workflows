@@ -69,16 +69,16 @@ on:
         default: ''
     outputs:
       version:
-        description: 'The version tag that was built'
+        description: 'The version tag that was built. This will be empty if build_skipped == "true" (no container build was run).'
         value: ${{ jobs.ci-build.outputs.version }}
       image:
-        description: 'The full image name (without tag)'
+        description: 'The full image name (without tag). This will be empty if build_skipped == "true" (no container build was run).'
         value: ${{ jobs.ci-build.outputs.image }}
       image_with_tag:
-        description: 'The full image name with tag'
+        description: 'The full image name with tag. This will be empty if build_skipped == "true" (no container build was run).'
         value: ${{ jobs.ci-build.outputs.image_with_tag }}
       build_skipped:
-        description: 'Whether the build was skipped due to path filtering'
+        description: 'Whether the build was skipped due to path filtering. Callers should check this before using version/image outputs.'
         value: ${{ jobs.check-changes.outputs.should_skip }}
     secrets:
       registry_username:
