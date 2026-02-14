@@ -100,7 +100,7 @@ jobs:
 | `runner` | The GitHub runner to use | No | `ubuntu-latest` |
 | `k8s_directory` | Directory containing Kustomize files | No | `./k8s` |
 | `kustomize_version` | Kustomize version to use | No | `latest` |
-| `kubernetes_version` | Kubernetes version for validation | No | `1.32` |
+| `kubernetes_version` | Kubernetes version for validation | No | `1.32.0` |
 | `skip_kubeconform` | Skip kubeconform validation | No | `false` |
 | `skip_kubescore` | Skip kube-score validation | No | `false` |
 | `strict_validation` | Enable strict validation in kubeconform | No | `true` |
