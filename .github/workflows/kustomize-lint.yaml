@@ -100,11 +100,11 @@ jobs:
         if: ${{ !inputs.skip_yamllint }}
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: '3.x'
+          python-version: '3.12'
 
       - name: 'Install yamllint'
         if: ${{ !inputs.skip_yamllint }}
-        run: pip install yamllint
+        run: pip install yamllint==1.35.1
 
       - name: 'Lint YAML files'
         if: ${{ !inputs.skip_yamllint }}
