@@ -101,6 +101,8 @@ jobs:
 | `k8s_directory` | Directory containing Kustomize files | No | `./k8s` |
 | `kustomize_version` | Kustomize version to use | No | `latest` |
 | `kubernetes_version` | Kubernetes version for validation | No | `1.32.0` |
+| `skip_yamllint` | Skip YAML linting | No | `false` |
+| `fail_on_yamllint` | Fail the workflow if yamllint finds issues | No | `false` |
 | `skip_kubeconform` | Skip kubeconform validation | No | `false` |
 | `skip_kubescore` | Skip kube-score validation | No | `false` |
 | `strict_validation` | Enable strict validation in kubeconform | No | `true` |
@@ -140,6 +142,16 @@ Checks YAML files for:
 - Indentation issues
 - Line length violations
 - Trailing spaces
+
+### yamllint
+
+Checks YAML files for:
+- Syntax errors
+- Indentation issues
+- Line length violations
+- Trailing spaces
+
+**Note**: By default, yamllint failures are non-blocking (warnings only) because yamllint can be very strict about formatting. Set `fail_on_yamllint: true` to make yamllint failures block the workflow, or set `skip_yamllint: true` to skip YAML linting entirely.
 
 ### kubeconform
 
@@ -264,12 +276,6 @@ jobs:
 The workflow requires the following permissions:
 - `contents: read` - To checkout the repository
 - `pull-requests: read` - To detect changes in pull requests
-
-## Examples
-
-See the repository workflows for examples:
-- [Basic Example](../../../examples/kustomize-basic.yml)
-- [Multi-Environment Example](../../../examples/kustomize-multi-env.yml)
 
 ## Related Workflows
 

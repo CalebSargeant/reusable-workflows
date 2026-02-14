@@ -502,6 +502,8 @@ jobs:
 | `k8s_directory` | Directory containing Kustomize files | No | `./k8s` |
 | `kustomize_version` | Kustomize version to use | No | `latest` |
 | `kubernetes_version` | Kubernetes version for validation | No | `1.32.0` |
+| `skip_yamllint` | Skip YAML linting | No | `false` |
+| `fail_on_yamllint` | Fail the workflow if yamllint finds issues | No | `false` |
 | `skip_kubeconform` | Skip kubeconform validation | No | `false` |
 | `skip_kubescore` | Skip kube-score validation | No | `false` |
 | `strict_validation` | Enable strict validation in kubeconform | No | `true` |

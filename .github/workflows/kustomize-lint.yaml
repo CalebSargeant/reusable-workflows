@@ -23,6 +23,16 @@ on:
         description: 'Kubernetes version for validation (e.g., 1.32.0)'
         required: false
         default: '1.32.0'
+      skip_yamllint:
+        type: boolean
+        description: 'Skip YAML linting'
+        required: false
+        default: false
+      fail_on_yamllint:
+        type: boolean
+        description: 'Fail the workflow if yamllint finds issues'
+        required: false
+        default: false
       skip_kubeconform:
         type: boolean
         description: 'Skip kubeconform validation'
@@ -77,8 +87,15 @@ jobs:
           kustomize-version: ${{ inputs.kustomize_version }}
 
       - name: 'Lint YAML files'
+        if: ${{ !inputs.skip_yamllint }}
         run: |
-          yamllint ${{ inputs.k8s_directory }}/ || echo "::warning::YAML linting found issues but continuing..."
+          # yamllint can be strict; by default we allow it to fail with warnings
+          # Set fail_on_yamllint: true to make this a hard failure
+          if [ "${{ inputs.fail_on_yamllint }}" == "true" ]; then
+            yamllint ${{ inputs.k8s_directory }}/
+          else
+            yamllint ${{ inputs.k8s_directory }}/ || echo "::warning::YAML linting found issues but continuing..."
+          fi
 
       - name: 'Build Kustomize manifests'
         id: kustomize-build
