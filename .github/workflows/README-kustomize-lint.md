@@ -143,14 +143,6 @@ Checks YAML files for:
 - Line length violations
 - Trailing spaces
 
-### yamllint
-
-Checks YAML files for:
-- Syntax errors
-- Indentation issues
-- Line length violations
-- Trailing spaces
-
 **Note**: By default, yamllint failures are non-blocking (warnings only) because yamllint can be very strict about formatting. Set `fail_on_yamllint: true` to make yamllint failures block the workflow, or set `skip_yamllint: true` to skip YAML linting entirely.
 
 ### kubeconform
