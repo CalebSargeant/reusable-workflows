@@ -398,6 +398,151 @@ your-repo/
         └── docs.yml     # Use working-directory: 'docs-src'
 ```
 
+## Kustomize Linting Workflow
+
+A reusable workflow for linting and validating Kubernetes Kustomize configurations with automatic change detection.
+
+### Features
+
+- Smart change detection - only runs when k8s files change
+- Automatic pass when no changes detected in the k8s directory
+- Configurable k8s directory path
+- Multiple validation tools:
+  - YAML linting with `yamllint`
+  - Kustomize build validation
+  - Kubernetes schema validation with `kubeconform`
+  - Best practices validation with `kube-score`
+- Flexible configuration to enable/disable specific validations
+- Version control for Kustomize and Kubernetes
+
+### Usage
+
+#### Basic Setup
+
+Create `.github/workflows/kustomize-ci.yml` in your repository:
+
+```yaml
+name: Kustomize CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+```
+
+#### Custom Configuration
+
+```yaml
+name: Kustomize CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './kubernetes/manifests'
+      kustomize_version: 'v5.0.0'
+      kubernetes_version: '1.28.0'
+      strict_validation: true
+```
+
+#### Multi-Environment Setup
+
+```yaml
+name: Kustomize CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop, staging]
+
+jobs:
+  lint-dev:
+    if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './k8s/overlays/dev'
+
+  lint-staging:
+    if: github.ref == 'refs/heads/staging' || github.base_ref == 'staging'
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './k8s/overlays/staging'
+
+  lint-prod:
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './k8s/overlays/prod'
+      strict_validation: true
+```
+
+### How It Works
+
+- **For Pull Requests & Pushes**: Checks if files in the k8s directory changed using `dorny/paths-filter`
+- **If no changes**: The workflow passes immediately without running linting
+- **If changes detected**: Runs YAML linting, Kustomize build, kubeconform validation, and kube-score checks
+- **Result**: CI check always passes when there are no changes, ensuring smooth workflow execution
+
+### Inputs
+
+| Name | Description | Required | Default |
+|------|-------------|----------|---------|
+| `runner` | The runner to use for the job | No | `ubuntu-latest` |
+| `k8s_directory` | Directory containing Kustomize files | No | `./k8s` |
+| `kustomize_version` | Kustomize version to use | No | `latest` |
+| `kubernetes_version` | Kubernetes version for validation | No | `1.32.0` |
+| `skip_yamllint` | Skip YAML linting | No | `false` |
+| `fail_on_yamllint` | Fail the workflow if yamllint finds issues | No | `false` |
+| `skip_kubeconform` | Skip kubeconform validation | No | `false` |
+| `skip_kubescore` | Skip kube-score validation | No | `false` |
+| `strict_validation` | Enable strict validation in kubeconform | No | `true` |
+
+### Validation Tools
+
+- **yamllint**: Validates YAML syntax and formatting
+- **kubeconform**: Validates Kubernetes resources against OpenAPI schemas
+- **kube-score**: Analyzes manifests for best practices (resource limits, health checks, security contexts, etc.)
+
+### Example Repository Structure
+
+```
+your-repo/
+├── k8s/                    # Default directory (configurable)
+│   ├── base/
+│   │   ├── kustomization.yaml
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── overlays/
+│       ├── dev/
+│       │   └── kustomization.yaml
+│       ├── staging/
+│       │   └── kustomization.yaml
+│       └── prod/
+│           └── kustomization.yaml
+└── .github/
+    └── workflows/
+        └── kustomize-ci.yml
+```
+
+### Requirements
+
+- Repository must have a valid Kustomize structure
+- `kustomization.yaml` (or `.yml`) files must exist in the configured directory
+- GitHub Actions must be enabled in your repository
+
+For detailed documentation, see [README-kustomize-lint.md](.github/workflows/README-kustomize-lint.md).
+
 ## Terragrunt Plan/Apply Workflow
 
 A reusable workflow for running Terragrunt plan and apply operations with AWS authentication.
