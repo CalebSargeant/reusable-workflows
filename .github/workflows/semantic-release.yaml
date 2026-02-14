@@ -96,6 +96,11 @@ on:
         required: false
         type: string
         default: '.'
+      fetch_depth:
+        description: 'Number of commits to fetch. 0 indicates all history for all branches and tags'
+        required: false
+        type: number
+        default: 0
     outputs:
       version:
         description: "The newly released version"
@@ -148,7 +153,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ github.ref_name }}
-          fetch-depth: 50  # Fetch enough history for semantic release to analyze commits
+          fetch-depth: ${{ inputs.fetch_depth }}  # Fetch full history by default (0) so semantic release can analyze all commits and find previous tags
           fetch-tags: true  # Explicitly fetch tags for version detection
           # Use GitHub App token, PAT, or default GITHUB_TOKEN
           token: ${{ steps.app-token.outputs.token || secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
