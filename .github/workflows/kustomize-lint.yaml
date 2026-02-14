@@ -71,7 +71,7 @@ jobs:
         with:
           filters: |
             k8s:
-              - '${{ inputs.k8s_directory }}/**'
+              - ${{ startsWith(inputs.k8s_directory, './') && format('{0}/**', substring(inputs.k8s_directory, 2)) || format('{0}/**', inputs.k8s_directory) }}
 
   # Lint and validate Kustomize files
   lint:
