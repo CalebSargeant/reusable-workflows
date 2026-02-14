@@ -1,0 +1,39 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.tf'
+      - '**/*.tfvars'
+      - '**/*.hcl'
+      - '.github/workflows/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**/*.tf'
+      - '**/*.tfvars'
+      - '**/*.hcl'
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    uses: {{ source_repo }}/.github/workflows/terragrunt-plan-cost-apply.yaml@{{ source_branch }}
+    with:
+      environment: 'production'
+      working_dir: '{{ terragrunt_working_dir }}'
+      aws_region: '{{ terragrunt_aws_region }}'
+      enable_comments: true
+      enable_infracost: {{ terragrunt_enable_infracost | lower }}
+      auto_approve: {% raw %}${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}{% endraw %}
+    secrets:
+      AWS_ROLE_TO_ASSUME: {% raw %}${{ secrets.AWS_ROLE_ARN }}{% endraw %}
+      INFRACOST_API_KEY: {% raw %}${{ secrets.INFRACOST_API_KEY }}{% endraw %}
+      SOPS_AGE_KEY: {% raw %}${{ secrets.SOPS_AGE_KEY }}{% endraw %}

@@ -1,0 +1,18 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  docs:
+    uses: {{ source_repo }}/.github/workflows/mkdocs-pages.yml@{{ source_branch }}
+    with:
+      python-version: '{{ mkdocs_python_version }}'
+      working-directory: '{{ mkdocs_working_directory }}'
