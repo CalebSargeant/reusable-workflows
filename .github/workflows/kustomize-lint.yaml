@@ -155,6 +155,13 @@ jobs:
     steps:
       - name: 'Check lint status'
         run: |
+          # Ensure change detection itself succeeded; otherwise, fail.
+          if [ "${{ needs.check-changes.result }}" != "success" ]; then
+            echo "✗ Change detection job 'check-changes' did not complete successfully (result: ${{ needs.check-changes.result }})"
+            exit 1
+          fi
+
+          # If change detection succeeded and reported no changes, succeed.
           if [ "${{ needs.check-changes.outputs.k8s_changed }}" != "true" ]; then
             echo "✓ No changes detected in ${{ inputs.k8s_directory }}, skipping linting"
             exit 0
