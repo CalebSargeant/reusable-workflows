@@ -127,12 +127,12 @@ jobs:
             kustomize build "$kustomization_dir" >> rendered-manifests.yaml
             echo "---" >> rendered-manifests.yaml
           done
-          
+
           if [ ! -s rendered-manifests.yaml ]; then
             echo "::error::No Kustomize manifests were built. Check if kustomization.yaml exists in ${{ inputs.k8s_directory }}"
             exit 1
           fi
-          
+
           echo "Successfully built Kustomize manifests"
 
       - name: 'Validate with kubeconform'
@@ -142,7 +142,7 @@ jobs:
           if [ "${{ inputs.strict_validation }}" == "true" ]; then
             STRICT_FLAG="-strict"
           fi
-          
+
           cat rendered-manifests.yaml | docker run --rm -i \
             ghcr.io/yannh/kubeconform:v0.6.7-alpine \
             $STRICT_FLAG \
@@ -157,7 +157,7 @@ jobs:
           if [[ ! "$K8S_VERSION_SHORT" =~ ^v ]]; then
             K8S_VERSION_SHORT="v${K8S_VERSION_SHORT}"
           fi
-          
+
           cat rendered-manifests.yaml | docker run --rm -i \
             zegl/kube-score:v1.19.0 \
             score - \
@@ -184,7 +184,7 @@ jobs:
             echo "✓ No changes detected in ${{ inputs.k8s_directory }}, skipping linting"
             exit 0
           fi
-          
+
           if [ "${{ needs.lint.result }}" == "success" ]; then
             echo "✓ Kustomize linting passed"
             exit 0
