@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.0.29 (2026-02-14)
+
+### Bug Fixes
+
+- Update kustomize-lint.yaml
+  ([`3a1cb6d`](https://github.com/CalebSargeant/reusable-workflows/commit/3a1cb6de20df1a9e2fd018de197fc011be0a73d2))
+
+- Update kustomize-lint.yaml
+  ([`3a2df14`](https://github.com/CalebSargeant/reusable-workflows/commit/3a2df1437333a89d7a05d69c3b40f61c1a3587d4))
+
+
 ## v1.0.28 (2026-02-13)
 
 
