@@ -17,11 +17,6 @@ _subdirectory: "template"
 _templates_suffix: ".jinja"
 
 # Questions for the user
-github_org:
-  type: str
-  help: "GitHub organization or username where destination repo is located"
-  placeholder: "myorg"
-
 github_repo:
   type: str
   help: "Destination repository name (without org/user)"
@@ -130,9 +125,3 @@ ghes_hostname:
   help: "GHES hostname (e.g., github.mycompany.com)"
   placeholder: "github.mycompany.com"
   when: "{{ is_ghes }}"
-
-# Additional options
-include_readme:
-  type: bool
-  help: "Include a README with setup instructions?"
-  default: true

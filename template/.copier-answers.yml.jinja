@@ -4,7 +4,6 @@
 _src_path: https://github.com/{{ source_repo }}
 _commit: {{ source_branch }}
 
-github_org: {{ github_org }}
 github_repo: {{ github_repo }}
 source_repo: {{ source_repo }}
 source_branch: {{ source_branch }}
@@ -14,7 +13,6 @@ setup_docker_bake: {{ setup_docker_bake }}
 setup_semantic_release: {{ setup_semantic_release }}
 setup_server_notifications: {{ setup_server_notifications }}
 is_ghes: {{ is_ghes }}
-include_readme: {{ include_readme }}
 {% if setup_mkdocs %}mkdocs_python_version: {{ mkdocs_python_version }}
 mkdocs_working_directory: {{ mkdocs_working_directory }}
 {% endif %}{% if setup_terragrunt %}terragrunt_working_dir: {{ terragrunt_working_dir }}

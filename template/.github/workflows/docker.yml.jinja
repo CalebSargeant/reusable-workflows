@@ -21,5 +21,5 @@ jobs:
       registry: {{ docker_registry }}
       image_name: {{ docker_image_name }}
     secrets:
-      REGISTRY_USERNAME: {% raw %}${{ github.actor }}{% endraw %}
-      REGISTRY_PASSWORD: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+      registry_username: {% raw %}${{ github.actor }}{% endraw %}
+      registry_password: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}

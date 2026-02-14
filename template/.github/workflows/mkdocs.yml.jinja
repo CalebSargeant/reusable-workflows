@@ -5,6 +5,11 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   docs:
     uses: {{ source_repo }}/.github/workflows/mkdocs-pages.yml@{{ source_branch }}

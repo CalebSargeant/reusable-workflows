@@ -90,6 +90,8 @@ The Semantic Release workflow automates versioning and changelog generation base
 
 The server notifications workflow receives and processes server update events via repository dispatch.
 
+**Note:** This workflow is currently implemented inline (not using a reusable workflow). You can customize the notification logic directly in the workflow file.
+
 **Configuration:**
 - Slack channel ID: `{{ slack_channel_id }}`
 
@@ -125,8 +127,8 @@ copier update
 ## Source Repository
 
 For more information about the reusable workflows, see:
-- **Repository**: [https://github.com/{{ source_repo }}](https://github.com/{{ source_repo }})
-- **Documentation**: [https://github.com/{{ source_repo }}#readme](https://github.com/{{ source_repo }}#readme)
+- **Repository**: [{% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}]({% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }})
+- **Documentation**: [{% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}#readme]({% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}#readme)
 
 ## GHES Considerations
 {% if is_ghes %}
