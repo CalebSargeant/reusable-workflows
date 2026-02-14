@@ -101,14 +101,14 @@ jobs:
         id: kustomize-build
         run: |
           # Find all kustomization.yaml files and build them
-          find ${{ inputs.k8s_directory }} -name 'kustomization.yaml' -o -name 'kustomization.yml' | while read -r kustomization_file; do
+          find ${{ inputs.k8s_directory }} \( -name 'kustomization.yaml' -o -name 'kustomization.yml' \) | while read -r kustomization_file; do
             kustomization_dir=$(dirname "$kustomization_file")
             echo "Building Kustomize in: $kustomization_dir"
             kustomize build "$kustomization_dir" >> rendered-manifests.yaml
             echo "---" >> rendered-manifests.yaml
           done
           
-          if [ ! -f rendered-manifests.yaml ] || [ ! -s rendered-manifests.yaml ]; then
+          if [ ! -s rendered-manifests.yaml ]; then
             echo "::error::No Kustomize manifests were built. Check if kustomization.yaml exists in ${{ inputs.k8s_directory }}"
             exit 1
           fi
