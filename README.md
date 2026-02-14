@@ -452,7 +452,7 @@ jobs:
     with:
       k8s_directory: './kubernetes/manifests'
       kustomize_version: 'v5.0.0'
-      kubernetes_version: '1.28'
+      kubernetes_version: '1.28.0'
       strict_validation: true
 ```
 

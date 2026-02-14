@@ -20,9 +20,9 @@ on:
         default: 'latest'
       kubernetes_version:
         type: string
-        description: 'Kubernetes version for validation'
+        description: 'Kubernetes version for validation (e.g., 1.32.0)'
         required: false
-        default: '1.32'
+        default: '1.32.0'
       skip_kubeconform:
         type: boolean
         description: 'Skip kubeconform validation'
@@ -115,10 +115,16 @@ jobs:
       - name: 'Validate with kube-score'
         if: ${{ !inputs.skip_kubescore }}
         run: |
+          # kube-score expects version in vN.NN format, not N.NN.N
+          K8S_VERSION_SHORT=$(echo "${{ inputs.kubernetes_version }}" | cut -d. -f1-2)
+          if [[ ! "$K8S_VERSION_SHORT" =~ ^v ]]; then
+            K8S_VERSION_SHORT="v${K8S_VERSION_SHORT}"
+          fi
+          
           cat rendered-manifests.yaml | docker run --rm -i \
             zegl/kube-score:v1.19.0 \
-            score \
-            --kubernetes-version ${{ inputs.kubernetes_version }} \
+            score - \
+            --kubernetes-version "$K8S_VERSION_SHORT" \
             --color always || echo "::warning::kube-score found issues but continuing..."
 
   # This job will always succeed if no changes detected

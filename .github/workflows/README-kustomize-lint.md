@@ -52,7 +52,7 @@ jobs:
     with:
       k8s_directory: './kubernetes/manifests'
       kustomize_version: 'v5.0.0'
-      kubernetes_version: '1.28'
+      kubernetes_version: '1.28.0'
       strict_validation: true
       skip_kubescore: false
 ```
@@ -75,21 +75,21 @@ jobs:
     uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
     with:
       k8s_directory: './k8s/overlays/dev'
-      kubernetes_version: '1.28'
+      kubernetes_version: '1.28.0'
 
   lint-staging:
     if: github.ref == 'refs/heads/staging' || github.base_ref == 'staging'
     uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
     with:
       k8s_directory: './k8s/overlays/staging'
-      kubernetes_version: '1.30'
+      kubernetes_version: '1.30.0'
 
   lint-prod:
     if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
     uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
     with:
       k8s_directory: './k8s/overlays/prod'
-      kubernetes_version: '1.32'
+      kubernetes_version: '1.32.0'
       strict_validation: true
 ```
 
@@ -217,7 +217,7 @@ jobs:
     uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
     with:
       kustomize_version: 'v5.3.0'
-      kubernetes_version: '1.28'
+      kubernetes_version: '1.28.0'
 ```
 
 ## Troubleshooting
