@@ -1,6 +1,6 @@
 # {{ github_repo }} - GitHub Actions Workflows
 
-This repository uses reusable workflows from [{{ source_repo }}](https://github.com/{{ source_repo }}) as a single source of truth.
+This repository uses reusable workflows from [{{ source_repo }}]({% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}) as a single source of truth.
 
 ## Generated Configuration
 
