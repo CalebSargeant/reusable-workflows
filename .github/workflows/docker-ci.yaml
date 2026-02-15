@@ -204,8 +204,7 @@ jobs:
           pattern_count=0
           while IFS= read -r pattern || [[ -n "$pattern" ]]; do
             # Trim leading/trailing whitespace
-            pattern="${pattern#"${pattern%%[![:space:]]*}"}"
-            pattern="${pattern%"${pattern##*[![:space:]]}"}"
+            pattern=$(echo "$pattern" | xargs)
             # Skip empty lines
             [[ -z "$pattern" ]] && continue
             # Quote patterns that contain special YAML characters
