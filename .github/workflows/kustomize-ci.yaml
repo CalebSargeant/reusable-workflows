@@ -17,7 +17,7 @@ on:
         type: string
         description: 'Kustomize version to use'
         required: false
-        default: 'latest'
+        default: '5.8.1'
       kubernetes_version:
         type: string
         description: 'Kubernetes version for validation (e.g., 1.32.0)'
@@ -86,9 +86,14 @@ jobs:
 
       - name: 'Setup Kustomize'
         if: steps.filter.outputs.k8s == 'true'
-        uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2.1.0
-        with:
-          kustomize-version: ${{ inputs.kustomize_version }}
+        run: |
+          KUSTOMIZE_VERSION="${{ inputs.kustomize_version }}"
+          echo "Installing kustomize v${KUSTOMIZE_VERSION}"
+          curl -sLO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          tar xzf "kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          sudo mv kustomize /usr/local/bin/
+          rm "kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          kustomize version
 
       - name: 'Setup Python for yamllint'
         if: steps.filter.outputs.k8s == 'true' && !inputs.skip_yamllint
