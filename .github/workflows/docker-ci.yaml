@@ -204,12 +204,8 @@ jobs:
           while IFS= read -r pattern || [[ -n "$pattern" ]]; do
             # Skip empty lines
             [[ -z "$pattern" ]] && continue
-            # Quote patterns that contain special YAML characters
-            if [[ "$pattern" == *"*"* || "$pattern" == *"["* || "$pattern" == *"{"* ]]; then
-              echo "  - '$pattern'" >> "$RUNNER_TEMP/paths-filter.yml"
-            else
-              echo "  - $pattern" >> "$RUNNER_TEMP/paths-filter.yml"
-            fi
+            # Always quote patterns to safely handle YAML special characters (e.g. !, *, [, {)
+            echo "  - '$pattern'" >> "$RUNNER_TEMP/paths-filter.yml"
           done <<< "${{ inputs.container_paths }}"
 
           echo "Filter config:"
