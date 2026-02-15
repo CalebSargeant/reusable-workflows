@@ -207,12 +207,10 @@ jobs:
             pattern=$(echo "$pattern" | xargs)
             # Skip empty lines
             [[ -z "$pattern" ]] && continue
-            # Quote patterns that contain special YAML characters
-            if [[ "$pattern" == *"*"* || "$pattern" == *"["* || "$pattern" == *"{"* ]]; then
-              echo "  - '$pattern'" >> "$RUNNER_TEMP/paths-filter.yml"
-            else
-              echo "  - $pattern" >> "$RUNNER_TEMP/paths-filter.yml"
-            fi
+            # Always quote patterns to avoid YAML parsing/semantic issues
+            # Escape single quotes for YAML single-quoted scalars: ' -> ''
+            escaped_pattern=${pattern//\'/\'\'}
+            echo "  - '$escaped_pattern'" >> "$RUNNER_TEMP/paths-filter.yml"
             ((pattern_count++))
           done <<< "${{ inputs.container_paths }}"
 
