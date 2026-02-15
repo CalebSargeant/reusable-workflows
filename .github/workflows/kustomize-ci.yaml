@@ -54,11 +54,9 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Check if there are changes in the k8s directory
-  check-changes:
+  # Lint and validate Kustomize files
+  lint:
     runs-on: ${{ inputs.runner }}
-    outputs:
-      k8s_changed: ${{ steps.filter.outputs.k8s }}
     steps:
       - name: 'Checkout'
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -68,7 +66,6 @@ jobs:
       - name: 'Normalize k8s directory path'
         id: normalize-path
         run: |
-          # Remove leading ./ from path for dorny/paths-filter compatibility
           K8S_DIR="${{ inputs.k8s_directory }}"
           K8S_DIR="${K8S_DIR#./}"
           echo "normalized_path=${K8S_DIR}" >> "$GITHUB_OUTPUT"
@@ -81,33 +78,30 @@ jobs:
             k8s:
               - '${{ steps.normalize-path.outputs.normalized_path }}/**'
 
-  # Lint and validate Kustomize files
-  lint:
-    runs-on: ${{ inputs.runner }}
-    needs: [check-changes]
-    # Only run if there are changes in the k8s directory
-    if: needs.check-changes.outputs.k8s_changed == 'true'
-    steps:
-      - name: 'Checkout'
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - name: 'Exit early if no changes'
+        if: steps.filter.outputs.k8s != 'true'
+        run: |
+          echo "✓ No changes detected in ${{ inputs.k8s_directory }}, skipping linting"
+          exit 0
 
       - name: 'Setup Kustomize'
+        if: steps.filter.outputs.k8s == 'true'
         uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2.1.0
         with:
           kustomize-version: ${{ inputs.kustomize_version }}
 
       - name: 'Setup Python for yamllint'
-        if: ${{ !inputs.skip_yamllint }}
+        if: steps.filter.outputs.k8s == 'true' && !inputs.skip_yamllint
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.12'
 
       - name: 'Install yamllint'
-        if: ${{ !inputs.skip_yamllint }}
+        if: steps.filter.outputs.k8s == 'true' && !inputs.skip_yamllint
         run: pip install yamllint==1.35.1
 
       - name: 'Lint YAML files'
-        if: ${{ !inputs.skip_yamllint }}
+        if: steps.filter.outputs.k8s == 'true' && !inputs.skip_yamllint
         run: |
           # yamllint can be strict; by default we allow it to fail with warnings
           # Set fail_on_yamllint: true to make this a hard failure
@@ -118,6 +112,7 @@ jobs:
           fi
 
       - name: 'Build Kustomize manifests'
+        if: steps.filter.outputs.k8s == 'true'
         id: kustomize-build
         run: |
           # Find all kustomization.yaml files and build them
@@ -136,7 +131,7 @@ jobs:
           echo "Successfully built Kustomize manifests"
 
       - name: 'Validate with kubeconform'
-        if: ${{ !inputs.skip_kubeconform }}
+        if: steps.filter.outputs.k8s == 'true' && !inputs.skip_kubeconform
         run: |
           STRICT_FLAG=""
           if [ "${{ inputs.strict_validation }}" == "true" ]; then
@@ -150,7 +145,7 @@ jobs:
             -kubernetes-version ${{ inputs.kubernetes_version }}
 
       - name: 'Validate with kube-score'
-        if: ${{ !inputs.skip_kubescore }}
+        if: steps.filter.outputs.k8s == 'true' && !inputs.skip_kubescore
         run: |
           # kube-score expects version in vN.NN format, not N.NN.N
           K8S_VERSION_SHORT=$(echo "${{ inputs.kubernetes_version }}" | cut -d. -f1-2)
