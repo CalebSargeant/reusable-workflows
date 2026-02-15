@@ -241,7 +241,6 @@ jobs:
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
           vulnerability-service: osv
-        continue-on-error: true
 
       # ============================================
       # DYNAMIC: JavaScript/Node.js Security (npm audit)
@@ -257,19 +256,18 @@ jobs:
         run: |
           if [ -f "package-lock.json" ]; then
             echo "Running npm audit..."
-            npm audit --audit-level=high || true
+            npm audit --audit-level=high
           elif [ -f "yarn.lock" ]; then
             echo "Running yarn audit..."
             npm install -g yarn
-            yarn audit --level high || true
+            yarn audit --level high
           elif [ -f "pnpm-lock.yaml" ]; then
             echo "Running pnpm audit..."
             npm install -g pnpm
-            pnpm audit --audit-level high || true
+            pnpm audit --audit-level high
           else
             echo "No lock file found, skipping audit"
           fi
-        continue-on-error: true
 
       # ============================================
       # DYNAMIC: Go Security (govulncheck)
@@ -287,7 +285,6 @@ jobs:
         with:
           go-version-input: 'stable'
           check-latest: true
-        continue-on-error: true
 
       # ============================================
       # DYNAMIC: Dockerfile Linting (Hadolint)
@@ -325,7 +322,7 @@ jobs:
         continue-on-error: true
 
       # ============================================
-      # OPTIONAL: Semgrep SAST (caller must enable)
+      # CORE: Semgrep SAST (enabled by default)
       # ============================================
       - name: Run Semgrep SAST
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
@@ -333,10 +330,9 @@ jobs:
         with:
           config: ${{ inputs.semgrep_config }}
           generateSarif: '1'
-        continue-on-error: true
 
       - name: Upload Semgrep SARIF
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast && always()
         uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           sarif_file: 'semgrep.sarif'
@@ -355,11 +351,10 @@ jobs:
           skip_check: ${{ inputs.checkov_skip_checks }}
           output_format: sarif
           output_file_path: checkov-results.sarif
-          soft_fail: true
-        continue-on-error: true
+          soft_fail: false
 
       - name: Upload Checkov SARIF
-        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true'
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true' && always()
         uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           sarif_file: 'checkov-results.sarif'
