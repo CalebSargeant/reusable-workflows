@@ -203,8 +203,8 @@ jobs:
           # Read each pattern and format as YAML list item
           pattern_count=0
           while IFS= read -r pattern || [[ -n "$pattern" ]]; do
-            # Trim leading/trailing whitespace
-            pattern=$(echo "$pattern" | xargs)
+            # Trim leading/trailing whitespace without re-parsing the content
+            pattern=$(printf '%s\n' "$pattern" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             # Skip empty lines
             [[ -z "$pattern" ]] && continue
             # Always quote patterns to avoid YAML parsing/semantic issues
