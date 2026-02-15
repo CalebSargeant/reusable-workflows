@@ -2,6 +2,45 @@
 
 <!-- version list -->
 
+## v1.1.4 (2026-02-15)
+
+### Bug Fixes
+
+- Enhance Docker CI/CD workflows with version validation and branch mapping
+  ([#58](https://github.com/CalebSargeant/reusable-workflows/pull/58),
+  [`b360e4f`](https://github.com/CalebSargeant/reusable-workflows/commit/b360e4f966dcab7bcab0546bb0b36077e95aa0dd))
+
+- Streamline Kustomize CI workflow by removing unnecessary checks and optimizing conditions
+  ([#58](https://github.com/CalebSargeant/reusable-workflows/pull/58),
+  [`b360e4f`](https://github.com/CalebSargeant/reusable-workflows/commit/b360e4f966dcab7bcab0546bb0b36077e95aa0dd))
+
+- Update CI configuration for Kustomize and Docker builds, optimizing paths and versioning
+  ([#58](https://github.com/CalebSargeant/reusable-workflows/pull/58),
+  [`b360e4f`](https://github.com/CalebSargeant/reusable-workflows/commit/b360e4f966dcab7bcab0546bb0b36077e95aa0dd))
+
+
+## v1.1.3 (2026-02-15)
+
+### Bug Fixes
+
+- Streamline Kustomize CI workflow by removing unnecessary checks and optimizing conditions
+  ([#57](https://github.com/CalebSargeant/reusable-workflows/pull/57),
+  [`e99123d`](https://github.com/CalebSargeant/reusable-workflows/commit/e99123df0ea5403369b80de132073c41fd9616ad))
+
+- Update CI configuration for Kustomize and Docker builds, optimizing paths and versioning
+  ([#57](https://github.com/CalebSargeant/reusable-workflows/pull/57),
+  [`e99123d`](https://github.com/CalebSargeant/reusable-workflows/commit/e99123df0ea5403369b80de132073c41fd9616ad))
+
+
+## v1.1.2 (2026-02-15)
+
+### Bug Fixes
+
+- Streamline Kustomize CI workflow by removing unnecessary checks and optimizing conditions
+  ([#56](https://github.com/CalebSargeant/reusable-workflows/pull/56),
+  [`5eb361e`](https://github.com/CalebSargeant/reusable-workflows/commit/5eb361e299df17d6d1156b6c8c7f5e062fe04353))
+
+
 ## v1.1.1 (2026-02-15)
 
 ### Bug Fixes
