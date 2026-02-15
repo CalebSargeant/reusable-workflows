@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.1.3 (2026-02-15)
+
+### Bug Fixes
+
+- Streamline Kustomize CI workflow by removing unnecessary checks and optimizing conditions
+  ([#57](https://github.com/CalebSargeant/reusable-workflows/pull/57),
+  [`e99123d`](https://github.com/CalebSargeant/reusable-workflows/commit/e99123df0ea5403369b80de132073c41fd9616ad))
+
+- Update CI configuration for Kustomize and Docker builds, optimizing paths and versioning
+  ([#57](https://github.com/CalebSargeant/reusable-workflows/pull/57),
+  [`e99123d`](https://github.com/CalebSargeant/reusable-workflows/commit/e99123df0ea5403369b80de132073c41fd9616ad))
+
+
 ## v1.1.2 (2026-02-15)
 
 ### Bug Fixes
