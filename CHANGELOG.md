@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-02-15)
+
+### Features
+
+- Add reusable security scan workflow with dynamic language detection
+  ([#61](https://github.com/CalebSargeant/reusable-workflows/pull/61),
+  [`94d5cf2`](https://github.com/CalebSargeant/reusable-workflows/commit/94d5cf297853dce7d2aee3fc378c1926e723cae6))
+
+
 ## v1.1.5 (2026-02-15)
 
 ### Bug Fixes
