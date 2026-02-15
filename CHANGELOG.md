@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v1.1.1 (2026-02-15)
+
+### Bug Fixes
+
+- Remove success job for lint status check
+  ([#55](https://github.com/CalebSargeant/reusable-workflows/pull/55),
+  [`67baf5c`](https://github.com/CalebSargeant/reusable-workflows/commit/67baf5c688c471f8c9e5fd2af85608d4fcc0d963))
+
+### Chores
+
+- **deps**: Bump aws-actions/configure-aws-credentials
+  ([#44](https://github.com/CalebSargeant/reusable-workflows/pull/44),
+  [`1dc2053`](https://github.com/CalebSargeant/reusable-workflows/commit/1dc20538b09875c36c55f5541c2b78350a96b7ca))
+
+- **deps**: Bump docker/login-action from 3.6.0 to 3.7.0
+  ([#46](https://github.com/CalebSargeant/reusable-workflows/pull/46),
+  [`b6a53b1`](https://github.com/CalebSargeant/reusable-workflows/commit/b6a53b1ed8888c25d977a80f0d0804f1d124c900))
+
+- **deps**: Bump docker/setup-buildx-action from 3.11.1 to 3.12.0
+  ([#43](https://github.com/CalebSargeant/reusable-workflows/pull/43),
+  [`f15c83e`](https://github.com/CalebSargeant/reusable-workflows/commit/f15c83e6ccdca068414871fceeb63f41f6e24a59))
+
+- **deps**: Bump docker/setup-qemu-action from 3.6.0 to 3.7.0
+  ([#42](https://github.com/CalebSargeant/reusable-workflows/pull/42),
+  [`ad956fe`](https://github.com/CalebSargeant/reusable-workflows/commit/ad956fed2f6a54c6f56e3ca5149c92a1003cb553))
+
+- **deps**: Bump gruntwork-io/terragrunt-action from 3.0.2 to 3.1.0
+  ([#45](https://github.com/CalebSargeant/reusable-workflows/pull/45),
+  [`72e1d31`](https://github.com/CalebSargeant/reusable-workflows/commit/72e1d311b9d6dbf527a1aaf6f249daee8661da84))
+
+
 ## v1.1.0 (2026-02-14)
 
 ### Features
