@@ -1,0 +1,25 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    uses: {{ source_repo }}/.github/workflows/docker-bake-ghcr.yaml@{{ source_branch }}
+    with:
+      registry: {{ docker_registry }}
+      image_name: {{ docker_image_name }}
+    secrets:
+      registry_username: {% raw %}${{ github.actor }}{% endraw %}
+      registry_password: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}

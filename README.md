@@ -23,6 +23,91 @@
 
 This repository contains reusable GitHub Actions workflows that can be called from other repositories.
 
+## 📋 Using This Repository as a Template with Copier
+
+This repository can be used as a template to automatically set up workflows in your destination repositories using [Copier](https://copier.readthedocs.io/).
+
+### Quick Start with Copier
+
+#### Prerequisites
+
+Install Copier:
+```bash
+# Using pip
+pip install copier
+
+# Using pipx (recommended)
+pipx install copier
+
+# Using uv
+uv tool install copier
+```
+
+#### Generate Workflows in Your Repository
+
+```bash
+# Navigate to your destination repository
+cd /path/to/your/repo
+
+# Run Copier to generate workflows
+copier copy gh:CalebSargeant/reusable-workflows .
+
+# Answer the interactive prompts to configure your workflows
+```
+
+Copier will ask you questions to customize the generated workflows:
+- Which workflows you want to set up (MkDocs, Terragrunt, Docker, etc.)
+- Configuration details for each workflow
+- Whether you're using GitHub Enterprise Server (GHES)
+- Your organization and repository details
+
+#### Update Existing Workflows
+
+To update workflows that were previously generated:
+
+```bash
+cd /path/to/your/repo
+copier update
+```
+
+This will pull the latest changes from the template while preserving your custom configuration.
+
+### What Gets Generated
+
+Copier will create:
+- `.github/workflows/` - Workflow files for selected features
+- `WORKFLOWS-README.md` - Documentation for the generated workflows
+- `.copier-answers.yml` - Configuration tracking file (used for updates)
+
+### Supported Workflows
+
+The following workflows can be automatically configured:
+
+1. **MkDocs GitHub Pages** - Build and deploy documentation
+2. **Terragrunt Infrastructure** - Terraform/Terragrunt with AWS OIDC
+3. **Docker Build & Push** - Multi-platform container builds
+4. **Semantic Release** - Automated versioning and changelogs
+5. **Server Notifications** - Server update notifications via Slack
+
+### GHES Support
+
+This template supports GitHub Enterprise Server deployments. When generating workflows, you can specify:
+- GHES hostname
+- Custom source repository locations
+- Branch/tag references for reusable workflows
+
+### Benefits of Using Copier
+
+- **Single Source of Truth**: All workflows reference this repository
+- **Easy Updates**: Run `copier update` to get the latest workflow improvements
+- **Consistency**: Maintain consistent workflows across multiple repositories
+- **Customization**: Each repository can have its own configuration
+- **Version Control**: Track template versions with `.copier-answers.yml`
+
+### Manual Usage (Without Copier)
+
+If you prefer not to use Copier, you can still manually reference the reusable workflows. See the individual workflow sections below for manual setup instructions.
+
 ## 🚀 Auto-Update System with GitHub Actions & Slack Channel Routing
 
 A one-liner installer for server auto-updates with centralized Slack notifications via GitHub Actions, inspired by Pi-hole and k3s installers.
@@ -397,6 +482,151 @@ your-repo/
     └── workflows/
         └── docs.yml     # Use working-directory: 'docs-src'
 ```
+
+## Kustomize Linting Workflow
+
+A reusable workflow for linting and validating Kubernetes Kustomize configurations with automatic change detection.
+
+### Features
+
+- Smart change detection - only runs when k8s files change
+- Automatic pass when no changes detected in the k8s directory
+- Configurable k8s directory path
+- Multiple validation tools:
+  - YAML linting with `yamllint`
+  - Kustomize build validation
+  - Kubernetes schema validation with `kubeconform`
+  - Best practices validation with `kube-score`
+- Flexible configuration to enable/disable specific validations
+- Version control for Kustomize and Kubernetes
+
+### Usage
+
+#### Basic Setup
+
+Create `.github/workflows/kustomize-ci.yml` in your repository:
+
+```yaml
+name: Kustomize CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+```
+
+#### Custom Configuration
+
+```yaml
+name: Kustomize CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './kubernetes/manifests'
+      kustomize_version: 'v5.0.0'
+      kubernetes_version: '1.28.0'
+      strict_validation: true
+```
+
+#### Multi-Environment Setup
+
+```yaml
+name: Kustomize CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop, staging]
+
+jobs:
+  lint-dev:
+    if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './k8s/overlays/dev'
+
+  lint-staging:
+    if: github.ref == 'refs/heads/staging' || github.base_ref == 'staging'
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './k8s/overlays/staging'
+
+  lint-prod:
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    uses: CalebSargeant/reusable-workflows/.github/workflows/kustomize-lint.yaml@main
+    with:
+      k8s_directory: './k8s/overlays/prod'
+      strict_validation: true
+```
+
+### How It Works
+
+- **For Pull Requests & Pushes**: Checks if files in the k8s directory changed using `dorny/paths-filter`
+- **If no changes**: The workflow passes immediately without running linting
+- **If changes detected**: Runs YAML linting, Kustomize build, kubeconform validation, and kube-score checks
+- **Result**: CI check always passes when there are no changes, ensuring smooth workflow execution
+
+### Inputs
+
+| Name | Description | Required | Default |
+|------|-------------|----------|---------|
+| `runner` | The runner to use for the job | No | `ubuntu-latest` |
+| `k8s_directory` | Directory containing Kustomize files | No | `./k8s` |
+| `kustomize_version` | Kustomize version to use | No | `latest` |
+| `kubernetes_version` | Kubernetes version for validation | No | `1.32.0` |
+| `skip_yamllint` | Skip YAML linting | No | `false` |
+| `fail_on_yamllint` | Fail the workflow if yamllint finds issues | No | `false` |
+| `skip_kubeconform` | Skip kubeconform validation | No | `false` |
+| `skip_kubescore` | Skip kube-score validation | No | `false` |
+| `strict_validation` | Enable strict validation in kubeconform | No | `true` |
+
+### Validation Tools
+
+- **yamllint**: Validates YAML syntax and formatting
+- **kubeconform**: Validates Kubernetes resources against OpenAPI schemas
+- **kube-score**: Analyzes manifests for best practices (resource limits, health checks, security contexts, etc.)
+
+### Example Repository Structure
+
+```
+your-repo/
+├── k8s/                    # Default directory (configurable)
+│   ├── base/
+│   │   ├── kustomization.yaml
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   └── overlays/
+│       ├── dev/
+│       │   └── kustomization.yaml
+│       ├── staging/
+│       │   └── kustomization.yaml
+│       └── prod/
+│           └── kustomization.yaml
+└── .github/
+    └── workflows/
+        └── kustomize-ci.yml
+```
+
+### Requirements
+
+- Repository must have a valid Kustomize structure
+- `kustomization.yaml` (or `.yml`) files must exist in the configured directory
+- GitHub Actions must be enabled in your repository
+
+For detailed documentation, see [README-kustomize-lint.md](.github/workflows/README-kustomize-lint.md).
 
 ## Terragrunt Plan/Apply Workflow
 
