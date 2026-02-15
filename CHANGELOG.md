@@ -2,6 +2,41 @@
 
 <!-- version list -->
 
+## v1.1.5 (2026-02-15)
+
+### Bug Fixes
+
+- Add validation for empty container_paths input with whitespace handling
+  ([#59](https://github.com/CalebSargeant/reusable-workflows/pull/59),
+  [`6226007`](https://github.com/CalebSargeant/reusable-workflows/commit/6226007a0926cb9ed6d671fadcbb96712598be7a))
+
+- Enhance Docker CI/CD workflows with version validation and branch mapping
+  ([#59](https://github.com/CalebSargeant/reusable-workflows/pull/59),
+  [`6226007`](https://github.com/CalebSargeant/reusable-workflows/commit/6226007a0926cb9ed6d671fadcbb96712598be7a))
+
+- Streamline Kustomize CI workflow by removing unnecessary checks and optimizing conditions
+  ([#59](https://github.com/CalebSargeant/reusable-workflows/pull/59),
+  [`6226007`](https://github.com/CalebSargeant/reusable-workflows/commit/6226007a0926cb9ed6d671fadcbb96712598be7a))
+
+- Update .github/workflows/docker-ci.yaml
+  ([#59](https://github.com/CalebSargeant/reusable-workflows/pull/59),
+  [`6226007`](https://github.com/CalebSargeant/reusable-workflows/commit/6226007a0926cb9ed6d671fadcbb96712598be7a))
+
+- Update CI configuration for Kustomize and Docker builds, optimizing paths and versioning
+  ([#59](https://github.com/CalebSargeant/reusable-workflows/pull/59),
+  [`6226007`](https://github.com/CalebSargeant/reusable-workflows/commit/6226007a0926cb9ed6d671fadcbb96712598be7a))
+
+- Update container_paths input description and format for YAML compatibility
+  ([#59](https://github.com/CalebSargeant/reusable-workflows/pull/59),
+  [`6226007`](https://github.com/CalebSargeant/reusable-workflows/commit/6226007a0926cb9ed6d671fadcbb96712598be7a))
+
+### Refactoring
+
+- Simplify whitespace trimming using xargs
+  ([#59](https://github.com/CalebSargeant/reusable-workflows/pull/59),
+  [`6226007`](https://github.com/CalebSargeant/reusable-workflows/commit/6226007a0926cb9ed6d671fadcbb96712598be7a))
+
+
 ## v1.1.4 (2026-02-15)
 
 ### Bug Fixes
