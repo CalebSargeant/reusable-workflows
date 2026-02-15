@@ -1,0 +1,25 @@
+# Copier answers file
+# This file tracks the configuration used to generate this repository
+# Run `copier update` to update the generated files
+_src_path: https://github.com/{{ source_repo }}
+_commit: {{ source_branch }}
+
+github_repo: {{ github_repo }}
+source_repo: {{ source_repo }}
+source_branch: {{ source_branch }}
+setup_mkdocs: {{ setup_mkdocs }}
+setup_terragrunt: {{ setup_terragrunt }}
+setup_docker_bake: {{ setup_docker_bake }}
+setup_semantic_release: {{ setup_semantic_release }}
+setup_server_notifications: {{ setup_server_notifications }}
+is_ghes: {{ is_ghes }}
+{% if setup_mkdocs %}mkdocs_python_version: {{ mkdocs_python_version }}
+mkdocs_working_directory: {{ mkdocs_working_directory }}
+{% endif %}{% if setup_terragrunt %}terragrunt_working_dir: {{ terragrunt_working_dir }}
+terragrunt_aws_region: {{ terragrunt_aws_region }}
+terragrunt_enable_infracost: {{ terragrunt_enable_infracost }}
+{% endif %}{% if setup_docker_bake %}docker_registry: {{ docker_registry }}
+docker_image_name: {{ docker_image_name }}
+{% endif %}{% if setup_server_notifications %}slack_channel_id: {{ slack_channel_id }}
+{% endif %}{% if is_ghes %}ghes_hostname: {{ ghes_hostname }}
+{% endif %}
