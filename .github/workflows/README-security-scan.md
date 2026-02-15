@@ -103,9 +103,9 @@ jobs:
 | `trivy_severity` | Severity levels | `CRITICAL,HIGH` |
 | `trivy_exit_code` | Exit code on findings | `1` (fail) |
 | `trivy_ignore_unfixed` | Ignore unfixed CVEs | `true` |
-| `trivyignore_file` | Path to .trivyignore | `.trivyignore` |
-| `gitleaks_baseline` | Path to TruffleHog exclude file | `''` |
-| `semgrep_baseline` | Path to .semgrepignore | `''` |
+| `trivyignore_file` | Path to .trivyignore (only used if exists) | `.trivyignore` |
+| `gitleaks_baseline` | Path to TruffleHog exclude file (only used if exists) | `''` |
+| `semgrep_baseline` | Path to .semgrepignore (auto-detected) | `''` |
 | `enable_sast` | Enable Semgrep SAST | `true` |
 | `enable_license_scan` | Enable license scan | `false` |
 | `semgrep_config` | Semgrep rules | `p/default p/security-audit p/secrets` |
@@ -114,6 +114,8 @@ jobs:
 ## Ignoring Pre-Existing Vulnerabilities
 
 If your project has existing vulnerabilities you can't fix immediately, use baseline/ignore files to prevent new vulnerabilities while tracking known ones.
+
+> **Note:** All ignore files are **optional**. The workflow checks if each file exists before using it - missing files won't cause errors.
 
 ### Trivy (CVEs) - `.trivyignore`
 
