@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.1.0 (2026-02-14)
+
+### Features
+
+- Add Docker Bake CI workflow and refactor existing workflows
+  ([`d5b835b`](https://github.com/CalebSargeant/reusable-workflows/commit/d5b835b633370f7e98b38cca2d06406958da702b))
+
+
 ## v1.0.29 (2026-02-14)
 
 ### Bug Fixes
