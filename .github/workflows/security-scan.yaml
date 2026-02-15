@@ -28,7 +28,7 @@ on:
         type: boolean
         default: true
       trivyignore_file:
-        description: 'Path to trivyignore file for whitelisting known CVEs'
+        description: 'Path to trivyignore file for whitelisting known CVEs (only used if file exists)'
         required: false
         type: string
         default: '.trivyignore'
@@ -168,6 +168,17 @@ jobs:
       # ============================================
       # CORE: Trivy Vulnerability Scan (always runs)
       # ============================================
+      - name: Check for trivyignore file
+        id: trivyignore
+        run: |
+          if [ -f "${{ inputs.trivyignore_file }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Found ${{ inputs.trivyignore_file }}"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No ${{ inputs.trivyignore_file }} found, skipping ignore file"
+          fi
+
       - name: Run Trivy vulnerability scanner
         if: steps.detect.outputs.any_changed == 'true'
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
@@ -178,7 +189,7 @@ jobs:
           exit-code: ${{ inputs.trivy_exit_code }}
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
           skip-dirs: 'node_modules,.git,vendor'
-          trivyignores: ${{ inputs.trivyignore_file }}
+          trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
           format: 'table'
 
       - name: Trivy SARIF output
@@ -191,7 +202,7 @@ jobs:
           exit-code: '0'
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
           skip-dirs: 'node_modules,.git,vendor'
-          trivyignores: ${{ inputs.trivyignore_file }}
+          trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
@@ -206,11 +217,21 @@ jobs:
       # ============================================
       # CORE: TruffleHog Secret Detection (always runs)
       # ============================================
+      - name: Check for TruffleHog exclude file
+        id: trufflehog-baseline
+        run: |
+          if [ -n "${{ inputs.gitleaks_baseline }}" ] && [ -f "${{ inputs.gitleaks_baseline }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Found ${{ inputs.gitleaks_baseline }}"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run TruffleHog secret detection
         if: steps.detect.outputs.any_changed == 'true'
         uses: trufflesecurity/trufflehog@afbf580a6ec37188c43b2f3f66b9169484206a2f # v3.88.27
         with:
-          extra_args: --only-verified ${{ inputs.gitleaks_baseline != '' && format('--exclude-paths={0}', inputs.gitleaks_baseline) || '' }}
+          extra_args: --only-verified ${{ steps.trufflehog-baseline.outputs.exists == 'true' && format('--exclude-paths={0}', inputs.gitleaks_baseline) || '' }}
 
       # ============================================
       # DYNAMIC: Python Security (pip-audit)
