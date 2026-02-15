@@ -1172,7 +1172,7 @@ jobs:
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `container_paths` | Paths that trigger builds (YAML list with `- ` prefix) | Common source files |
+| `container_paths` | Paths that trigger builds (one glob pattern per line) | Common source files |
 | `bake_file` | Path to docker-bake.hcl | `docker-bake.hcl` |
 | `bake_target` | Docker Bake target to build | `default` |
 | `image_name` | Docker image name (without registry/org) | Uses `bake_target` |
