@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.2.1 (2026-02-15)
+
+### Bug Fixes
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#62](https://github.com/CalebSargeant/reusable-workflows/pull/62),
+  [`1279302`](https://github.com/CalebSargeant/reusable-workflows/commit/1279302faea823a2899bc0eb63987b5a8ae30e37))
+
+
 ## v1.2.0 (2026-02-15)
 
 ### Features
