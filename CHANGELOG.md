@@ -2,6 +2,48 @@
 
 <!-- version list -->
 
+## v1.1.0 (2026-02-14)
+
+### Features
+
+- Add Docker Bake CI workflow and refactor existing workflows
+  ([`d5b835b`](https://github.com/CalebSargeant/reusable-workflows/commit/d5b835b633370f7e98b38cca2d06406958da702b))
+
+
+## v1.0.29 (2026-02-14)
+
+### Bug Fixes
+
+- Update kustomize-lint.yaml
+  ([`3a1cb6d`](https://github.com/CalebSargeant/reusable-workflows/commit/3a1cb6de20df1a9e2fd018de197fc011be0a73d2))
+
+- Update kustomize-lint.yaml
+  ([`3a2df14`](https://github.com/CalebSargeant/reusable-workflows/commit/3a2df1437333a89d7a05d69c3b40f61c1a3587d4))
+
+
+## v1.0.28 (2026-02-13)
+
+
+## v1.0.27 (2026-02-13)
+
+
+## v1.0.26 (2026-02-13)
+
+### Bug Fixes
+
+- Update semantic-release configuration in `pyproject.toml`
+  ([`73e868d`](https://github.com/CalebSargeant/reusable-workflows/commit/73e868d1a93b6450f89bddf313e7f8d95605f427))
+
+### Chores
+
+- **release**: 0.0.1
+  ([`a977831`](https://github.com/CalebSargeant/reusable-workflows/commit/a977831800ef046f28ba5d56ecb99221c5a18768))
+
+
+## v0.0.1 (2026-02-13)
+
+- Initial Release
+
 ## v1.0.25 (2026-02-12)
 
 

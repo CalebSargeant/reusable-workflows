@@ -1,0 +1,39 @@
+# Workflows Setup Complete!
+
+The following workflow files have been generated:
+
+{% if setup_mkdocs %}✅ **mkdocs.yml** - MkDocs documentation workflow (CONFIGURED)
+{% else %}⚠️ **mkdocs.yml** - MkDocs documentation workflow (NOT CONFIGURED - you can delete this file)
+{% endif %}
+{% if setup_terragrunt %}✅ **terragrunt.yml** - Terragrunt infrastructure workflow (CONFIGURED)
+{% else %}⚠️ **terragrunt.yml** - Terragrunt infrastructure workflow (NOT CONFIGURED - you can delete this file)
+{% endif %}
+{% if setup_docker_bake %}✅ **docker.yml** - Docker build and push workflow (CONFIGURED)
+{% else %}⚠️ **docker.yml** - Docker build and push workflow (NOT CONFIGURED - you can delete this file)
+{% endif %}
+{% if setup_semantic_release %}✅ **semantic-release.yml** - Semantic release workflow (CONFIGURED)
+{% else %}⚠️ **semantic-release.yml** - Semantic release workflow (NOT CONFIGURED - you can delete this file)
+{% endif %}
+{% if setup_server_notifications %}✅ **server-notifications.yml** - Server update notifications workflow (CONFIGURED)
+{% else %}⚠️ **server-notifications.yml** - Server update notifications workflow (NOT CONFIGURED - you can delete this file)
+{% endif %}
+
+## Next Steps
+
+1. Review the generated workflow files in `.github/workflows/`
+2. Delete any workflow files that are marked as "NOT CONFIGURED" if you don't need them
+3. Read `WORKFLOWS-README.md` for detailed setup instructions
+4. Configure required secrets in your repository settings
+5. Test the workflows by triggering them manually or via commits
+
+## Updating
+
+To update these workflows in the future, run:
+
+```bash
+copier update
+```
+
+This will pull the latest changes from the template while preserving your configuration.
+
+For more information, see `WORKFLOWS-README.md`.

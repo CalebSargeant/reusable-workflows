@@ -1,0 +1,150 @@
+# {{ github_repo }} - GitHub Actions Workflows
+
+This repository uses reusable workflows from [{{ source_repo }}]({% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}) as a single source of truth.
+
+## Generated Configuration
+
+This repository was set up using Copier from the reusable workflows template.
+
+### Source Repository
+- **Repository**: `{{ source_repo }}`
+- **Branch/Tag**: `{{ source_branch }}`
+{% if is_ghes %}- **GHES Hostname**: `{{ ghes_hostname }}`{% endif %}
+
+## Configured Workflows
+
+{% if setup_mkdocs %}### MkDocs Documentation
+
+The MkDocs workflow builds and deploys documentation to GitHub Pages.
+
+**Configuration:**
+- Python version: `{{ mkdocs_python_version }}`
+- Working directory: `{{ mkdocs_working_directory }}`
+
+**Setup Requirements:**
+1. Go to **Settings → Pages → Build and deployment**
+2. Set the source to **GitHub Actions**
+3. Ensure you have a `mkdocs.yml` file in your working directory
+
+**Workflow file:** `.github/workflows/mkdocs.yml`
+
+{% endif %}{% if setup_terragrunt %}### Terragrunt Infrastructure
+
+The Terragrunt workflow manages infrastructure using Terraform and Terragrunt.
+
+**Configuration:**
+- Working directory: `{{ terragrunt_working_dir }}`
+- AWS region: `{{ terragrunt_aws_region }}`
+- Infracost enabled: `{{ terragrunt_enable_infracost }}`
+
+**Setup Requirements:**
+
+1. **AWS OIDC Setup**: Create an IAM role with appropriate permissions and configure OIDC trust
+2. **GitHub Secrets**: Add the following secrets:
+   - `AWS_ROLE_ARN`: AWS IAM role ARN to assume
+   - `INFRACOST_API_KEY`: Infracost API key (if using cost estimation)
+   - `SOPS_AGE_KEY`: SOPS Age key (if using encrypted secrets)
+
+3. **GitHub Environment**: Create a `production` environment in repository settings
+
+**Workflow file:** `.github/workflows/terragrunt.yml`
+
+{% endif %}{% if setup_docker_bake %}### Docker Build and Push
+
+The Docker workflow builds and pushes container images to {{ docker_registry }}.
+
+**Configuration:**
+- Registry: `{{ docker_registry }}`
+- Image name: `{{ docker_image_name }}`
+
+**Setup Requirements:**
+
+1. Ensure you have a `docker-bake.hcl` file in your repository root
+2. For GHCR, the workflow uses the default GitHub token (no additional setup needed)
+3. For other registries, add appropriate credentials as secrets
+
+**Workflow file:** `.github/workflows/docker.yml`
+
+{% endif %}{% if setup_semantic_release %}### Semantic Release
+
+The Semantic Release workflow automates versioning and changelog generation based on commit messages.
+
+**Setup Requirements:**
+
+1. Use conventional commits:
+   - `feat:` for new features (minor version bump)
+   - `fix:` for bug fixes (patch version bump)
+   - `BREAKING CHANGE:` in commit body for breaking changes (major version bump)
+
+2. Ensure repository has a `pyproject.toml` with semantic-release configuration
+
+3. **Authentication:**
+   - By default, the workflow uses the GitHub Actions `GITHUB_TOKEN` for authentication with the GitHub API and for creating releases.
+   - If you need elevated permissions (for example, to bypass branch protection rules or use a GitHub App), configure a GitHub App and add the following repository secrets:
+     - `SEMANTIC_RELEASE_APP_ID`: The GitHub App ID
+     - `SEMANTIC_RELEASE_APP_PRIVATE_KEY`: The GitHub App private key
+   - Refer to the reusable workflow documentation in `{{ source_repo }}` for detailed GitHub App setup instructions.
+
+**Workflow file:** `.github/workflows/semantic-release.yml`
+
+{% endif %}{% if setup_server_notifications %}### Server Update Notifications
+
+The server notifications workflow receives and processes server update events via repository dispatch.
+
+**Note:** This workflow is currently implemented inline (not using a reusable workflow). You can customize the notification logic directly in the workflow file.
+
+**Configuration:**
+- Slack channel ID: `{{ slack_channel_id }}`
+
+**Setup Requirements:**
+
+1. **Slack Setup**:
+   - Create a Slack app at [api.slack.com](https://api.slack.com/apps)
+   - Add OAuth scopes: `chat:write`, `reactions:write`, `channels:read`
+   - Install the app to your workspace
+   - Copy the Bot User OAuth Token
+
+2. **GitHub Secret**:
+   - Add `SLACK_BOT_TOKEN` secret with your Slack bot token
+
+3. **Server Configuration**:
+   - Install the auto-update script on your servers
+   - Configure servers to send repository dispatch events to this repo
+
+**Workflow file:** `.github/workflows/server-notifications.yml`
+
+{% endif %}
+## Updating Workflows
+
+To update the workflows to use a newer version of the reusable workflows:
+
+1. Update the `source_branch` reference in your workflow files
+2. Or re-run Copier to regenerate with updated configuration:
+
+```bash
+copier update
+```
+
+## Source Repository
+
+For more information about the reusable workflows, see:
+- **Repository**: [{% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}]({% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }})
+- **Documentation**: [{% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}#readme]({% if is_ghes %}https://{{ ghes_hostname }}{% else %}https://github.com{% endif %}/{{ source_repo }}#readme)
+
+## GHES Considerations
+{% if is_ghes %}
+This repository is configured for GitHub Enterprise Server at `{{ ghes_hostname }}`.
+
+**Important notes:**
+- Ensure the reusable workflows repository is accessible from your GHES instance
+- Update workflow references if the source repository is hosted on a different GHES instance
+- Some GitHub Marketplace actions may not be available on GHES - verify availability
+{% else %}
+If you need to use these workflows with GitHub Enterprise Server:
+1. Re-run Copier and enable GHES support
+2. Or manually update workflow references to point to your GHES instance
+{% endif %}
+
+---
+
+*This repository was generated using [Copier](https://copier.readthedocs.io/) from {{ source_repo }}*
