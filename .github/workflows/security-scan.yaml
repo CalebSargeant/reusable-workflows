@@ -271,7 +271,6 @@ jobs:
           go-version-input: 'stable'
           check-latest: true
 
-
       # ============================================
       # CORE: Semgrep SAST (enabled by default)
       # ============================================
