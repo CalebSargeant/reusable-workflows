@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.1.2 (2026-02-15)
+
+### Bug Fixes
+
+- Streamline Kustomize CI workflow by removing unnecessary checks and optimizing conditions
+  ([#56](https://github.com/CalebSargeant/reusable-workflows/pull/56),
+  [`5eb361e`](https://github.com/CalebSargeant/reusable-workflows/commit/5eb361e299df17d6d1156b6c8c7f5e062fe04353))
+
+
 ## v1.1.1 (2026-02-15)
 
 ### Bug Fixes
