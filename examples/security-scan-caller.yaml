@@ -1,7 +1,9 @@
 # Example Security Scan Caller Workflow
 #
-# Minimal by default - dynamic scans run based on what files changed
-# Enable optional scans as needed for your project
+# Security-focused scanning that BLOCKS PRs on findings
+# Dynamic scans run based on what files changed
+#
+# For linting (Dockerfiles, shell scripts, workflows), see lint-scan-caller.yaml
 
 name: Security
 
@@ -13,7 +15,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Basic usage - fast, minimal
   security-scan:
     name: Security Scan
     uses: calebsargeant/reusable-workflows/.github/workflows/security-scan.yaml@main
@@ -22,9 +23,6 @@ jobs:
       pull-requests: read
       security-events: write
     # Default settings work for most repos
-    # Uncomment below to enable optional scans:
+    # Uncomment to enable license scanning:
     # with:
-    #   enable_sast: true           # Semgrep SAST (+2 min)
-    #   enable_iac_scan: true       # Checkov for Terraform/K8s (+1 min)
-    #   enable_license_scan: true   # License compliance (+30s)
-
+    #   enable_license_scan: true

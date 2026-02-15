@@ -120,18 +120,6 @@ jobs:
               - 'package-lock.json'
               - 'yarn.lock'
               - 'pnpm-lock.yaml'
-            dockerfile:
-              - '**/Dockerfile'
-              - '**/Dockerfile.*'
-              - '**/*.dockerfile'
-              - 'docker-compose*.yml'
-              - 'docker-compose*.yaml'
-            shell:
-              - '**/*.sh'
-              - '**/*.bash'
-              - '**/*.zsh'
-            workflows:
-              - '.github/workflows/**'
             iac:
               - '**/*.tf'
               - '**/*.tfvars'
@@ -152,9 +140,6 @@ jobs:
           echo "| Python | ${{ steps.detect.outputs.python }} |" >> $GITHUB_STEP_SUMMARY
           echo "| JavaScript/TypeScript | ${{ steps.detect.outputs.javascript }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Go | ${{ steps.detect.outputs.go }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dockerfile | ${{ steps.detect.outputs.dockerfile }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Shell Scripts | ${{ steps.detect.outputs.shell }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| GitHub Workflows | ${{ steps.detect.outputs.workflows }} |" >> $GITHUB_STEP_SUMMARY
           echo "| IaC (Terraform/K8s) | ${{ steps.detect.outputs.iac }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -287,41 +272,6 @@ jobs:
           check-latest: true
 
       # ============================================
-      # DYNAMIC: Dockerfile Linting (Hadolint)
-      # ============================================
-      - name: Run Hadolint (Dockerfile detected)
-        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.dockerfile == 'true'
-        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
-        with:
-          dockerfile: "Dockerfile"
-          recursive: true
-          failure-threshold: ignore
-        continue-on-error: true
-
-      # ============================================
-      # DYNAMIC: Shell Script Linting (ShellCheck)
-      # ============================================
-      - name: Run ShellCheck (shell scripts detected)
-        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.shell == 'true'
-        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
-        with:
-          severity: warning
-          scandir: '.'
-        continue-on-error: true
-
-      # ============================================
-      # DYNAMIC: GitHub Actions Linting (Actionlint)
-      # ============================================
-      - name: Run Actionlint (workflows detected)
-        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.workflows == 'true'
-        uses: reviewdog/action-actionlint@e58ee9d111489c31395fbe4857b0be6e7635dbda # v1.70.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: github-pr-review
-          fail_on_error: false
-        continue-on-error: true
-
-      # ============================================
       # CORE: Semgrep SAST (enabled by default)
       # ============================================
       - name: Run Semgrep SAST
@@ -407,24 +357,12 @@ jobs:
           if [ "${{ steps.detect.outputs.go }}" == "true" ]; then
             echo "| govulncheck (Go) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ "${{ steps.detect.outputs.dockerfile }}" == "true" ]; then
-            echo "| Hadolint (Dockerfile) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ "${{ steps.detect.outputs.shell }}" == "true" ]; then
-            echo "| ShellCheck | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ "${{ steps.detect.outputs.workflows }}" == "true" ]; then
-            echo "| Actionlint | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          fi
           if [ "${{ steps.detect.outputs.iac }}" == "true" ]; then
             echo "| Checkov IaC | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
           fi
           if [ "${{ steps.detect.outputs.python }}" != "true" ] && \
              [ "${{ steps.detect.outputs.javascript }}" != "true" ] && \
              [ "${{ steps.detect.outputs.go }}" != "true" ] && \
-             [ "${{ steps.detect.outputs.dockerfile }}" != "true" ] && \
-             [ "${{ steps.detect.outputs.shell }}" != "true" ] && \
-             [ "${{ steps.detect.outputs.workflows }}" != "true" ] && \
              [ "${{ steps.detect.outputs.iac }}" != "true" ]; then
             echo "| (no language-specific scans needed) | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
           fi

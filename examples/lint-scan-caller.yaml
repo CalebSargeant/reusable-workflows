@@ -1,0 +1,36 @@
+# Example Lint Scan Caller Workflow
+#
+# Copy this file to your repository's .github/workflows/ directory
+# Provides code quality linting for JavaScript/TypeScript, Kubernetes,
+# Dockerfiles, shell scripts, and GitHub Actions workflows
+
+name: Lint
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint-scan:
+    name: Lint Scan
+    uses: calebsargeant/reusable-workflows/.github/workflows/lint-scan.yaml@main
+    permissions:
+      contents: read
+      pull-requests: read
+    # Uncomment and customize as needed:
+    # with:
+    #   fail_on_errors: true        # Block PRs on lint errors
+    #
+    #   # ESLint options
+    #   node_version: '22'          # Node.js version
+    #   eslint_script: 'lint'       # npm script to run
+    #
+    #   # Kustomize options
+    #   k8s_directory: './k8s'      # Kustomize directory
+    #   kubernetes_version: '1.32.0' # K8s version for validation
+    #   skip_kubeconform: false     # Skip kubeconform
+    #   skip_kubescore: false       # Skip kube-score
+
