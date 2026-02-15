@@ -201,7 +201,11 @@ jobs:
           echo "container:" > "$RUNNER_TEMP/paths-filter.yml"
 
           # Read each pattern and format as YAML list item
+          pattern_count=0
           while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+            # Trim leading/trailing whitespace
+            pattern="${pattern#"${pattern%%[![:space:]]*}"}"
+            pattern="${pattern%"${pattern##*[![:space:]]}"}"
             # Skip empty lines
             [[ -z "$pattern" ]] && continue
             # Quote patterns that contain special YAML characters
@@ -210,9 +214,16 @@ jobs:
             else
               echo "  - $pattern" >> "$RUNNER_TEMP/paths-filter.yml"
             fi
+            ((pattern_count++))
           done <<< "${{ inputs.container_paths }}"
 
-          echo "Filter config:"
+          # Verify at least one pattern was added
+          if [ "$pattern_count" -eq 0 ]; then
+            echo "::error::No container paths patterns provided. The container_paths input is empty or contains only whitespace."
+            exit 1
+          fi
+
+          echo "Filter config ($pattern_count patterns):"
           cat "$RUNNER_TEMP/paths-filter.yml"
 
       - name: Check for container-related changes
