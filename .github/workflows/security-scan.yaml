@@ -1,0 +1,427 @@
+name: Security Scan
+
+# Minimal security scanning workflow with dynamic language detection
+# Only runs the scans needed based on what files changed
+# Fast by default - enable additional scans in caller workflow if needed
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'GitHub runner to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      trivy_severity:
+        description: 'Trivy severity levels to scan for'
+        required: false
+        type: string
+        default: 'CRITICAL,HIGH'
+      trivy_exit_code:
+        description: 'Exit code when vulnerabilities are found (1 = fail, 0 = warn only)'
+        required: false
+        type: string
+        default: '1'
+      trivy_ignore_unfixed:
+        description: 'Ignore unfixed vulnerabilities'
+        required: false
+        type: boolean
+        default: true
+      trivyignore_file:
+        description: 'Path to trivyignore file for whitelisting known CVEs'
+        required: false
+        type: string
+        default: '.trivyignore'
+      gitleaks_baseline:
+        description: 'Path to gitleaks baseline file for ignoring known secrets'
+        required: false
+        type: string
+        default: ''
+      semgrep_baseline:
+        description: 'Path to semgrep baseline file (.semgrepignore) for ignoring known issues'
+        required: false
+        type: string
+        default: ''
+      # Optional scanners - disabled by default, caller must enable
+      enable_sast:
+        description: 'Enable Semgrep SAST scanning'
+        required: false
+        type: boolean
+        default: true
+      enable_license_scan:
+        description: 'Enable license compliance scanning'
+        required: false
+        type: boolean
+        default: false
+      semgrep_config:
+        description: 'Semgrep rules configuration'
+        required: false
+        type: string
+        default: 'p/default p/security-audit p/secrets'
+      checkov_skip_checks:
+        description: 'Checkov checks to skip (comma-separated)'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      scan_skipped:
+        description: 'Whether the scan was skipped due to no relevant changes'
+        value: ${{ jobs.security-scan.outputs.scan_skipped }}
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      scan_skipped: ${{ steps.detect.outputs.any_changed != 'true' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      # ============================================
+      # Dynamic Language/File Detection
+      # ============================================
+      - name: Detect changed files and languages
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: detect
+        with:
+          filters: |
+            any_changed:
+              - '**/*'
+            python:
+              - '**/*.py'
+              - 'requirements.txt'
+              - 'pyproject.toml'
+              - 'poetry.lock'
+              - 'Pipfile'
+              - 'Pipfile.lock'
+              - 'setup.py'
+              - 'setup.cfg'
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+            javascript:
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.mjs'
+              - '**/*.cjs'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'yarn.lock'
+              - 'pnpm-lock.yaml'
+            dockerfile:
+              - '**/Dockerfile'
+              - '**/Dockerfile.*'
+              - '**/*.dockerfile'
+              - 'docker-compose*.yml'
+              - 'docker-compose*.yaml'
+            shell:
+              - '**/*.sh'
+              - '**/*.bash'
+              - '**/*.zsh'
+            workflows:
+              - '.github/workflows/**'
+            iac:
+              - '**/*.tf'
+              - '**/*.tfvars'
+              - '**/*.hcl'
+              - '**/k8s/**'
+              - '**/kubernetes/**'
+              - '**/kustomize/**'
+              - '**/helm/**'
+              - '**/*.yaml'
+              - '**/*.yml'
+
+      - name: Detection summary
+        run: |
+          echo "## 🔍 Detected Changes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Language/Type | Changed |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ steps.detect.outputs.python }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| JavaScript/TypeScript | ${{ steps.detect.outputs.javascript }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Go | ${{ steps.detect.outputs.go }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dockerfile | ${{ steps.detect.outputs.dockerfile }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Shell Scripts | ${{ steps.detect.outputs.shell }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GitHub Workflows | ${{ steps.detect.outputs.workflows }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| IaC (Terraform/K8s) | ${{ steps.detect.outputs.iac }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Skip if no changes
+        if: steps.detect.outputs.any_changed != 'true'
+        run: |
+          echo "## ⏭️ Security Scan Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "No relevant file changes detected." >> $GITHUB_STEP_SUMMARY
+          echo "No changes detected, skipping security scan"
+
+      # ============================================
+      # CORE: Trivy Vulnerability Scan (always runs)
+      # ============================================
+      - name: Run Trivy vulnerability scanner
+        if: steps.detect.outputs.any_changed == 'true'
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: ${{ inputs.trivy_severity }}
+          exit-code: ${{ inputs.trivy_exit_code }}
+          ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
+          skip-dirs: 'node_modules,.git,vendor'
+          trivyignores: ${{ inputs.trivyignore_file }}
+          format: 'table'
+
+      - name: Trivy SARIF output
+        if: steps.detect.outputs.any_changed == 'true'
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: ${{ inputs.trivy_severity }}
+          exit-code: '0'
+          ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
+          skip-dirs: 'node_modules,.git,vendor'
+          trivyignores: ${{ inputs.trivyignore_file }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy SARIF
+        if: steps.detect.outputs.any_changed == 'true'
+        uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy'
+        continue-on-error: true
+
+      # ============================================
+      # CORE: TruffleHog Secret Detection (always runs)
+      # ============================================
+      - name: Run TruffleHog secret detection
+        if: steps.detect.outputs.any_changed == 'true'
+        uses: trufflesecurity/trufflehog@afbf580a6ec37188c43b2f3f66b9169484206a2f # v3.88.27
+        with:
+          extra_args: --only-verified ${{ inputs.gitleaks_baseline != '' && format('--exclude-paths={0}', inputs.gitleaks_baseline) || '' }}
+
+      # ============================================
+      # DYNAMIC: Python Security (pip-audit)
+      # ============================================
+      - name: Run pip-audit (Python detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.python == 'true'
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
+        with:
+          vulnerability-service: osv
+        continue-on-error: true
+
+      # ============================================
+      # DYNAMIC: JavaScript/Node.js Security (npm audit)
+      # ============================================
+      - name: Setup Node.js
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 'lts/*'
+
+      - name: Run npm audit (JavaScript detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true'
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "Running npm audit..."
+            npm audit --audit-level=high || true
+          elif [ -f "yarn.lock" ]; then
+            echo "Running yarn audit..."
+            npm install -g yarn
+            yarn audit --level high || true
+          elif [ -f "pnpm-lock.yaml" ]; then
+            echo "Running pnpm audit..."
+            npm install -g pnpm
+            pnpm audit --audit-level high || true
+          else
+            echo "No lock file found, skipping audit"
+          fi
+        continue-on-error: true
+
+      # ============================================
+      # DYNAMIC: Go Security (govulncheck)
+      # ============================================
+      - name: Setup Go
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.go == 'true'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: 'stable'
+          cache: false
+
+      - name: Run govulncheck (Go detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.go == 'true'
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          go-version-input: 'stable'
+          check-latest: true
+        continue-on-error: true
+
+      # ============================================
+      # DYNAMIC: Dockerfile Linting (Hadolint)
+      # ============================================
+      - name: Run Hadolint (Dockerfile detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.dockerfile == 'true'
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: "Dockerfile"
+          recursive: true
+          failure-threshold: ignore
+        continue-on-error: true
+
+      # ============================================
+      # DYNAMIC: Shell Script Linting (ShellCheck)
+      # ============================================
+      - name: Run ShellCheck (shell scripts detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.shell == 'true'
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          severity: warning
+          scandir: '.'
+        continue-on-error: true
+
+      # ============================================
+      # DYNAMIC: GitHub Actions Linting (Actionlint)
+      # ============================================
+      - name: Run Actionlint (workflows detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.workflows == 'true'
+        uses: reviewdog/action-actionlint@e58ee9d111489c31395fbe4857b0be6e7635dbda # v1.70.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          fail_on_error: false
+        continue-on-error: true
+
+      # ============================================
+      # OPTIONAL: Semgrep SAST (caller must enable)
+      # ============================================
+      - name: Run Semgrep SAST
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v0.58.0
+        with:
+          config: ${{ inputs.semgrep_config }}
+          generateSarif: '1'
+        continue-on-error: true
+
+      - name: Upload Semgrep SARIF
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
+        uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        with:
+          sarif_file: 'semgrep.sarif'
+          category: 'semgrep'
+        continue-on-error: true
+
+      # ============================================
+      # DYNAMIC: Checkov IaC Scan (Terraform/K8s/Docker)
+      # ============================================
+      - name: Run Checkov IaC scan (IaC detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true'
+        uses: bridgecrewio/checkov-action@b3c44b4437c93549fc8cfaef9208497ba4955d39 # v12.3081.0
+        with:
+          directory: .
+          framework: all
+          skip_check: ${{ inputs.checkov_skip_checks }}
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+          soft_fail: true
+        continue-on-error: true
+
+      - name: Upload Checkov SARIF
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true'
+        uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        with:
+          sarif_file: 'checkov-results.sarif'
+          category: 'checkov'
+        continue-on-error: true
+
+      # ============================================
+      # OPTIONAL: License Compliance (caller must enable)
+      # ============================================
+      - name: Run license scan
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_license_scan
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'license'
+          exit-code: '1'
+          severity: 'UNKNOWN,HIGH,CRITICAL'
+        continue-on-error: true
+
+      # ============================================
+      # Summary
+      # ============================================
+      - name: Security Scan Summary
+        if: steps.detect.outputs.any_changed == 'true'
+        run: |
+          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Core Scans (always run)" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Vulnerability Scan | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
+          echo "| TruffleHog Secret Detection | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.enable_sast }}" == "true" ]; then
+            echo "| Semgrep SAST | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Semgrep SAST | ⏭️ Disabled |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Dynamic Scans (based on detected files)" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.detect.outputs.python }}" == "true" ]; then
+            echo "| pip-audit (Python) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.javascript }}" == "true" ]; then
+            echo "| npm/yarn/pnpm audit (JavaScript) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.go }}" == "true" ]; then
+            echo "| govulncheck (Go) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.dockerfile }}" == "true" ]; then
+            echo "| Hadolint (Dockerfile) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.shell }}" == "true" ]; then
+            echo "| ShellCheck | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.workflows }}" == "true" ]; then
+            echo "| Actionlint | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.iac }}" == "true" ]; then
+            echo "| Checkov IaC | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.python }}" != "true" ] && \
+             [ "${{ steps.detect.outputs.javascript }}" != "true" ] && \
+             [ "${{ steps.detect.outputs.go }}" != "true" ] && \
+             [ "${{ steps.detect.outputs.dockerfile }}" != "true" ] && \
+             [ "${{ steps.detect.outputs.shell }}" != "true" ] && \
+             [ "${{ steps.detect.outputs.workflows }}" != "true" ] && \
+             [ "${{ steps.detect.outputs.iac }}" != "true" ]; then
+            echo "| (no language-specific scans needed) | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Optional Scans (caller-enabled)" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.enable_license_scan }}" == "true" ]; then
+            echo "| License Scan | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| License Scan | ⏭️ Not enabled |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 Results uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+
