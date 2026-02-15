@@ -11,12 +11,95 @@ on:
         required: false
         type: string
         default: |
-          **
-          !.github/**
-          !*.md
-          !docs/**
-          !LICENSE
-          !.gitignore
+          Dockerfile
+          Dockerfile.*
+          **/Dockerfile
+          **/Dockerfile.*
+          docker-bake.hcl
+          docker-compose*.yml
+          docker-compose*.yaml
+          .dockerignore
+          src/**
+          app/**
+          cmd/**
+          pkg/**
+          internal/**
+          lib/**
+          bin/**
+          scripts/**
+          go.mod
+          go.sum
+          package.json
+          package-lock.json
+          yarn.lock
+          pnpm-lock.yaml
+          requirements.txt
+          pyproject.toml
+          poetry.lock
+          Pipfile
+          Pipfile.lock
+          Cargo.toml
+          Cargo.lock
+          Gemfile
+          Gemfile.lock
+          *.csproj
+          *.fsproj
+          *.vbproj
+          *.sln
+          nuget.config
+          Directory.Build.props
+          Directory.Packages.props
+          global.json
+          composer.json
+          composer.lock
+          pom.xml
+          build.gradle
+          build.gradle.kts
+          settings.gradle
+          settings.gradle.kts
+          mix.exs
+          mix.lock
+          pubspec.yaml
+          pubspec.lock
+          *.go
+          *.py
+          *.js
+          *.ts
+          *.jsx
+          *.tsx
+          *.rb
+          *.rs
+          *.cs
+          *.fs
+          *.vb
+          *.sh
+          *.bash
+          *.zsh
+          *.php
+          *.java
+          *.kt
+          *.kts
+          *.scala
+          *.ex
+          *.exs
+          *.erl
+          *.hrl
+          *.swift
+          *.m
+          *.mm
+          *.c
+          *.cpp
+          *.cc
+          *.cxx
+          *.h
+          *.hpp
+          *.hxx
+          *.lua
+          *.pl
+          *.pm
+          *.r
+          *.R
+          *.dart
       bake_file:
         description: 'Path to docker-bake file'
         required: false
@@ -79,7 +162,7 @@ on:
         value: ${{ jobs.ci-build.outputs.image_with_tag }}
       build_skipped:
         description: 'Whether the build was skipped due to path filtering. Callers should check this before using version/image outputs.'
-        value: ${{ jobs.check-changes.outputs.should_skip }}
+        value: ${{ jobs.ci-build.outputs.build_skipped }}
     secrets:
       registry_username:
         required: false
@@ -87,17 +170,26 @@ on:
         required: false
 
 jobs:
-  check-changes:
-    name: Check Changed Files
+  ci-build:
+    name: Container Build (CI)
     runs-on: ${{ inputs.runner }}
-    permissions:
-      pull-requests: read
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     outputs:
-      container_changed: ${{ steps.filter.outputs.container }}
-      should_skip: ${{ steps.filter.outputs.container != 'true' }}
+      version: ${{ steps.version.outputs.version }}
+      image: ${{ steps.image.outputs.full_name }}
+      image_with_tag: ${{ steps.image-with-tag.outputs.image_with_tag }}
+      build_skipped: ${{ steps.filter.outputs.container != 'true' }}
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
 
       - name: Check for container-related changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
@@ -119,31 +211,12 @@ jobs:
             echo "${{ inputs.container_paths }}" | sed 's/^/  /'
           fi
 
-  ci-build:
-    name: Container Build (CI)
-    needs: check-changes
-    if: needs.check-changes.outputs.container_changed == 'true'
-    runs-on: ${{ inputs.runner }}
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      image: ${{ steps.image.outputs.full_name }}
-      image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 0
-
       - name: Set up QEMU
+        if: steps.filter.outputs.container == 'true'
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
+        if: steps.filter.outputs.container == 'true'
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         with:
           driver-opts: |
@@ -152,7 +225,7 @@ jobs:
           buildkitd-flags: --debug
 
       - name: Log in to Container Registry
-        if: inputs.push
+        if: steps.filter.outputs.container == 'true' && inputs.push
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ inputs.registry }}
@@ -160,6 +233,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine version
+        if: steps.filter.outputs.container == 'true'
         id: version
         run: |
           VERSION="pr-${{ github.event.pull_request.number }}"
@@ -173,6 +247,7 @@ jobs:
           echo "Building version: ${VERSION}"
 
       - name: Set image name
+        if: steps.filter.outputs.container == 'true'
         id: image
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
@@ -184,14 +259,21 @@ jobs:
           IMAGE_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
           echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
 
+      - name: Set image with tag
+        if: steps.filter.outputs.container == 'true'
+        id: image-with-tag
+        run: |
+          echo "image_with_tag=${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}" >> "$GITHUB_OUTPUT"
+
       - name: Export build variables
-        if: inputs.buildx_vars != ''
+        if: steps.filter.outputs.container == 'true' && inputs.buildx_vars != ''
         run: |
           # Export each KEY=VALUE pair as environment variable for docker/bake-action
           # Bake automatically picks up env vars matching variable names in the HCL file
           printf '%s\n' "${{ inputs.buildx_vars }}" >> "$GITHUB_ENV"
 
       - name: Build with Docker Bake
+        if: steps.filter.outputs.container == 'true'
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
           files: |
