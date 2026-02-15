@@ -1,0 +1,35 @@
+name: Docker Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        type: choice
+        options:
+{%- for branch in version_branch_mapping | default({'main': {'type': 'stable'}}) | dictsort %}
+          - {{ branch[0] }}
+{%- endfor %}
+        default: '{{ stable_branch | default('main') }}'
+      version:
+        description: 'Version tag. Leave empty to auto-increment.'
+        required: false
+        type: string
+
+jobs:
+  release:
+    uses: {{ reusable_workflows_repo }}/.github/workflows/docker-release.yaml@{{ reusable_workflows_ref }}
+    with:
+      image_name: {{ image_name | default('${{ github.event.repository.name }}') }}
+      bake_file: {{ bake_file | default('docker-bake.hcl') }}
+      bake_target: {{ bake_target | default('default') }}
+      platforms: {{ platforms | default('linux/amd64,linux/arm64') }}
+      push: true
+      auto_promote_on_release: {% raw %}${{ github.event_name == 'release' }}{% endraw %}
+      force_version: {% raw %}${{ inputs.version || '' }}{% endraw %}
+      version_branch_mapping: '{{ version_branch_mapping | default('{"main": {"type": "stable"}}') | tojson }}'
+    secrets: inherit
+

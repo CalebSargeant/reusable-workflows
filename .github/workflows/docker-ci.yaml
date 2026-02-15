@@ -7,99 +7,99 @@ on:
   workflow_call:
     inputs:
       container_paths:
-        description: 'Paths that trigger container builds (multiline string, one glob pattern per line). Uses dorny/paths-filter syntax.'
+        description: 'Paths that trigger container builds (multiline string, one glob pattern per line with "- " prefix). Uses dorny/paths-filter syntax.'
         required: false
         type: string
         default: |
-          Dockerfile
-          Dockerfile.*
-          **/Dockerfile
-          **/Dockerfile.*
-          docker-bake.hcl
-          docker-compose*.yml
-          docker-compose*.yaml
-          .dockerignore
-          src/**
-          app/**
-          cmd/**
-          pkg/**
-          internal/**
-          lib/**
-          bin/**
-          scripts/**
-          go.mod
-          go.sum
-          package.json
-          package-lock.json
-          yarn.lock
-          pnpm-lock.yaml
-          requirements.txt
-          pyproject.toml
-          poetry.lock
-          Pipfile
-          Pipfile.lock
-          Cargo.toml
-          Cargo.lock
-          Gemfile
-          Gemfile.lock
-          *.csproj
-          *.fsproj
-          *.vbproj
-          *.sln
-          nuget.config
-          Directory.Build.props
-          Directory.Packages.props
-          global.json
-          composer.json
-          composer.lock
-          pom.xml
-          build.gradle
-          build.gradle.kts
-          settings.gradle
-          settings.gradle.kts
-          mix.exs
-          mix.lock
-          pubspec.yaml
-          pubspec.lock
-          *.go
-          *.py
-          *.js
-          *.ts
-          *.jsx
-          *.tsx
-          *.rb
-          *.rs
-          *.cs
-          *.fs
-          *.vb
-          *.sh
-          *.bash
-          *.zsh
-          *.php
-          *.java
-          *.kt
-          *.kts
-          *.scala
-          *.ex
-          *.exs
-          *.erl
-          *.hrl
-          *.swift
-          *.m
-          *.mm
-          *.c
-          *.cpp
-          *.cc
-          *.cxx
-          *.h
-          *.hpp
-          *.hxx
-          *.lua
-          *.pl
-          *.pm
-          *.r
-          *.R
-          *.dart
+          - Dockerfile
+          - Dockerfile.*
+          - '**/Dockerfile'
+          - '**/Dockerfile.*'
+          - docker-bake.hcl
+          - 'docker-compose*.yml'
+          - 'docker-compose*.yaml'
+          - .dockerignore
+          - 'src/**'
+          - 'app/**'
+          - 'cmd/**'
+          - 'pkg/**'
+          - 'internal/**'
+          - 'lib/**'
+          - 'bin/**'
+          - 'scripts/**'
+          - go.mod
+          - go.sum
+          - package.json
+          - package-lock.json
+          - yarn.lock
+          - pnpm-lock.yaml
+          - requirements.txt
+          - pyproject.toml
+          - poetry.lock
+          - Pipfile
+          - Pipfile.lock
+          - Cargo.toml
+          - Cargo.lock
+          - Gemfile
+          - Gemfile.lock
+          - '*.csproj'
+          - '*.fsproj'
+          - '*.vbproj'
+          - '*.sln'
+          - nuget.config
+          - Directory.Build.props
+          - Directory.Packages.props
+          - global.json
+          - composer.json
+          - composer.lock
+          - pom.xml
+          - build.gradle
+          - build.gradle.kts
+          - settings.gradle
+          - settings.gradle.kts
+          - mix.exs
+          - mix.lock
+          - pubspec.yaml
+          - pubspec.lock
+          - '*.go'
+          - '*.py'
+          - '*.js'
+          - '*.ts'
+          - '*.jsx'
+          - '*.tsx'
+          - '*.rb'
+          - '*.rs'
+          - '*.cs'
+          - '*.fs'
+          - '*.vb'
+          - '*.sh'
+          - '*.bash'
+          - '*.zsh'
+          - '*.php'
+          - '*.java'
+          - '*.kt'
+          - '*.kts'
+          - '*.scala'
+          - '*.ex'
+          - '*.exs'
+          - '*.erl'
+          - '*.hrl'
+          - '*.swift'
+          - '*.m'
+          - '*.mm'
+          - '*.c'
+          - '*.cpp'
+          - '*.cc'
+          - '*.cxx'
+          - '*.h'
+          - '*.hpp'
+          - '*.hxx'
+          - '*.lua'
+          - '*.pl'
+          - '*.pm'
+          - '*.r'
+          - '*.R'
+          - '*.dart'
       bake_file:
         description: 'Path to docker-bake file'
         required: false

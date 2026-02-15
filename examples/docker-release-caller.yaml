@@ -1,0 +1,94 @@
+# Example Docker Release Caller Workflow
+#
+# This workflow calls the reusable docker-release workflow to build and publish
+# container images on release events.
+#
+# Features:
+# - Automatic PR image promotion on release (re-tags pr-<number> image)
+# - Falls back to fresh build if PR image is outdated
+# - Manual workflow dispatch for ad-hoc builds from any branch
+# - Flexible branch-to-version-type mapping (supports any number of branches):
+#   - main: stable semver (v1.2.3)
+#   - staging: release candidate (v1.2.3-rc.1)
+#   - develop: alpha (v1.2.3-alpha.1)
+#   - etc.
+
+name: Docker Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        type: choice
+        options:
+          - main
+          - staging
+          # Add more branches as needed
+        default: 'main'
+      version:
+        description: 'Version tag (e.g., v1.0.0 for main, v1.0.0-rc.1 for staging). Leave empty to auto-increment.'
+        required: false
+        type: string
+
+jobs:
+  release:
+    uses: calebsargeant/reusable-workflows/.github/workflows/docker-release.yaml@main
+    with:
+      # Required: Set your image name
+      image_name: my-app
+
+      # Optional: Docker Bake configuration
+      bake_file: docker-bake.hcl
+      bake_target: default
+
+      # Optional: Target platforms
+      platforms: linux/amd64,linux/arm64
+
+      # Push to registry
+      push: true
+
+      # Only auto-promote on release events (dispatch always builds fresh)
+      auto_promote_on_release: ${{ github.event_name == 'release' }}
+
+      # Pass version from dispatch input (reusable workflow handles validation/auto-increment)
+      force_version: ${{ inputs.version || '' }}
+
+      # Branch-to-version mapping (JSON format)
+      # Supports any number of branches with different version types.
+      #
+      # Version format (opinionated):
+      #   - Stable: v{major}.{minor}.{patch} (e.g., v1.2.3)
+      #   - Prerelease: v{major}.{minor}.{patch}-{identifier}.{number} (e.g., v1.2.3-rc.1)
+      #
+      # Examples:
+      #   Two branches (common):
+      #     {"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}}
+      #
+      #   Three branches:
+      #     {"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}, "develop": {"type": "prerelease", "identifier": "alpha"}}
+      #
+      #   Four branches:
+      #     {"main": {"type": "stable"}, "release": {"type": "prerelease", "identifier": "rc"}, "staging": {"type": "prerelease", "identifier": "beta"}, "develop": {"type": "prerelease", "identifier": "alpha"}}
+      #
+      version_branch_mapping: '{"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}}'
+
+      # Optional: Custom registry (defaults to ghcr.io)
+      # registry: ghcr.io
+
+      # Optional: Custom runner
+      # runner: ubuntu-latest
+
+      # Optional: Generate SBOM
+      # enable_sbom: true
+
+      # Optional: Additional build variables
+      # buildx_vars: |
+      #   MY_VAR=value
+      #   ANOTHER_VAR=value2
+
+    secrets: inherit
+

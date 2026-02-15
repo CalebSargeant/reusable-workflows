@@ -105,6 +105,33 @@ on:
         required: false
         type: string
         default: ''
+      version_branch_mapping:
+        description: |
+          JSON object mapping branches to version types. Supports any number of branches.
+          Format: {"branch_name": {"type": "stable|prerelease", "identifier": "rc|beta|alpha|..."}}
+
+          Version format (opinionated):
+            - Stable: v{major}.{minor}.{patch} (e.g., v1.2.3)
+            - Prerelease: v{major}.{minor}.{patch}-{identifier}.{number} (e.g., v1.2.3-rc.1)
+
+          Examples:
+            Single stable branch:
+              {"main": {"type": "stable"}}
+
+            Two branches (stable + rc):
+              {"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}}
+
+            Three branches:
+              {"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}, "develop": {"type": "prerelease", "identifier": "alpha"}}
+
+            Four branches:
+              {"main": {"type": "stable"}, "release": {"type": "prerelease", "identifier": "rc"}, "staging": {"type": "prerelease", "identifier": "beta"}, "develop": {"type": "prerelease", "identifier": "alpha"}}
+
+          Version precedence (for auto-increment base): stable > rc > beta > alpha > dev
+          When empty string or not set, no version validation/auto-increment is performed.
+        required: false
+        type: string
+        default: ''
     outputs:
       version:
         description: 'The version tag that was built or promoted'
@@ -118,6 +145,9 @@ on:
       pr_number:
         description: 'The PR number that was promoted (if applicable)'
         value: ${{ jobs.get-pr-number.outputs.pr_number }}
+      validated_version:
+        description: 'The validated/auto-determined version (when version_branch_mapping is enabled)'
+        value: ${{ jobs.validate-version.outputs.version }}
     secrets:
       registry_username:
         required: false
@@ -125,6 +155,218 @@ on:
         required: false
 
 jobs:
+  # Validate version format matches branch type (when version_branch_mapping is enabled)
+  validate-version:
+    name: Validate Version
+    if: inputs.version_branch_mapping != ''
+    runs-on: ${{ inputs.runner }}
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      valid: ${{ steps.validate.outputs.valid }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Determine current branch
+        id: branch
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            # For releases, get the branch from the release target
+            BRANCH="${{ github.event.release.target_commitish }}"
+          elif [[ "${{ github.ref }}" == refs/heads/* ]]; then
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          else
+            BRANCH="${{ github.ref_name }}"
+          fi
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "Current branch: $BRANCH"
+
+      - name: Parse branch mapping
+        id: mapping
+        run: |
+          BRANCH="${{ steps.branch.outputs.name }}"
+          MAPPING='${{ inputs.version_branch_mapping }}'
+
+          echo "Branch mapping: $MAPPING"
+          echo "Looking up branch: $BRANCH"
+
+          # Extract this branch's config from the JSON mapping
+          BRANCH_CONFIG=$(echo "$MAPPING" | jq -r --arg branch "$BRANCH" '.[$branch] // empty')
+
+          if [[ -z "$BRANCH_CONFIG" ]]; then
+            echo "Branch '$BRANCH' not found in mapping"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "type=" >> "$GITHUB_OUTPUT"
+            echo "identifier=" >> "$GITHUB_OUTPUT"
+          else
+            TYPE=$(echo "$BRANCH_CONFIG" | jq -r '.type')
+            IDENTIFIER=$(echo "$BRANCH_CONFIG" | jq -r '.identifier // empty')
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "type=$TYPE" >> "$GITHUB_OUTPUT"
+            echo "identifier=$IDENTIFIER" >> "$GITHUB_OUTPUT"
+            echo "Branch config: type=$TYPE, identifier=$IDENTIFIER"
+          fi
+
+      - name: Validate version format for branch
+        id: validate
+        if: steps.mapping.outputs.found == 'true'
+        run: |
+          BRANCH="${{ steps.branch.outputs.name }}"
+          VERSION="${{ inputs.force_version }}"
+          TYPE="${{ steps.mapping.outputs.type }}"
+          IDENTIFIER="${{ steps.mapping.outputs.identifier }}"
+
+          if [[ -z "$VERSION" ]]; then
+            echo "No version provided, skipping validation"
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Validate version format matches branch type
+          if [[ "$TYPE" == "stable" ]]; then
+            # Stable branch: must be stable semver (vX.Y.Z, no prerelease)
+            if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "✓ Valid stable version for $BRANCH: $VERSION"
+              echo "valid=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::Invalid version for $BRANCH branch: $VERSION"
+              echo "::error::$BRANCH branch requires stable semver (e.g., v1.2.3)"
+              echo "valid=false" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+          elif [[ "$TYPE" == "prerelease" ]]; then
+            # Prerelease branch: must be prerelease version (vX.Y.Z-<identifier>.N)
+            if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-${IDENTIFIER}\.[0-9]+$ ]]; then
+              echo "✓ Valid ${IDENTIFIER} version for $BRANCH: $VERSION"
+              echo "valid=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::Invalid version for $BRANCH branch: $VERSION"
+              echo "::error::$BRANCH branch requires ${IDENTIFIER} semver (e.g., v1.2.3-${IDENTIFIER}.1)"
+              echo "valid=false" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+          else
+            echo "::error::Unknown version type '$TYPE' for branch $BRANCH"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Determine version
+        id: version
+        run: |
+          BRANCH="${{ steps.branch.outputs.name }}"
+          VERSION="${{ inputs.force_version }}"
+          MAPPING='${{ inputs.version_branch_mapping }}'
+          BRANCH_FOUND="${{ steps.mapping.outputs.found }}"
+          TYPE="${{ steps.mapping.outputs.type }}"
+          IDENTIFIER="${{ steps.mapping.outputs.identifier }}"
+
+          # If version provided and validated, use it
+          if [[ -n "$VERSION" ]]; then
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "Using provided version: $VERSION"
+            exit 0
+          fi
+
+          # For release events, use the release tag
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "Using release tag: $VERSION"
+            exit 0
+          fi
+
+          # If branch not in mapping, use branch name as version
+          if [[ "$BRANCH_FOUND" != "true" ]]; then
+            BRANCH_SAFE=$(echo "$BRANCH" | tr '/' '-')
+            echo "version=$BRANCH_SAFE" >> "$GITHUB_OUTPUT"
+            echo "Branch not in mapping, using branch name as version: $BRANCH_SAFE"
+            exit 0
+          fi
+
+          # Auto-determine next version based on branch type
+          if [[ "$TYPE" == "stable" ]]; then
+            # Get latest stable tag (vX.Y.Z without prerelease)
+            LATEST=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+            if [[ -z "$LATEST" ]]; then
+              NEXT="v0.1.0"
+            else
+              # Increment patch version
+              MAJOR=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f1)
+              MINOR=$(echo "$LATEST" | cut -d. -f2)
+              PATCH=$(echo "$LATEST" | cut -d. -f3)
+              NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+            fi
+            echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+            echo "Auto-determined next stable version: $NEXT"
+
+          elif [[ "$TYPE" == "prerelease" ]]; then
+            # For prerelease, we need to find the appropriate base version
+            # The base is determined by finding the highest version from higher-precedence branches
+
+            # Define precedence order: stable > rc > beta > alpha > dev
+            declare -A PRECEDENCE=(["stable"]=100 ["rc"]=80 ["beta"]=60 ["alpha"]=40 ["dev"]=20)
+            CURRENT_PREC=${PRECEDENCE[$IDENTIFIER]:-10}
+
+            # Get the latest stable version as baseline
+            LATEST_STABLE=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+
+            # Also check for higher-precedence prereleases
+            # Extract all prerelease identifiers from the mapping that have higher precedence
+            HIGHER_PREC_VERSIONS=""
+            for branch_key in $(echo "$MAPPING" | jq -r 'keys[]'); do
+              branch_type=$(echo "$MAPPING" | jq -r --arg k "$branch_key" '.[$k].type')
+              branch_identifier=$(echo "$MAPPING" | jq -r --arg k "$branch_key" '.[$k].identifier // empty')
+
+              if [[ "$branch_type" == "prerelease" && -n "$branch_identifier" ]]; then
+                prec=${PRECEDENCE[$branch_identifier]:-10}
+                if (( prec > CURRENT_PREC )); then
+                  # Get latest version with this identifier
+                  latest_pre=$(git tag -l "v*-${branch_identifier}.*" | sort -V | tail -1)
+                  if [[ -n "$latest_pre" ]]; then
+                    HIGHER_PREC_VERSIONS="$HIGHER_PREC_VERSIONS $latest_pre"
+                    echo "Found higher precedence version: $latest_pre (${branch_identifier}, prec=$prec)"
+                  fi
+                fi
+              fi
+            done
+
+            # Determine the base version (highest from stable or higher-precedence prereleases)
+            if [[ -z "$LATEST_STABLE" ]]; then
+              BASE="v0.1.0"
+            else
+              # Start with next patch after stable
+              MAJOR=$(echo "$LATEST_STABLE" | sed 's/^v//' | cut -d. -f1)
+              MINOR=$(echo "$LATEST_STABLE" | cut -d. -f2)
+              PATCH=$(echo "$LATEST_STABLE" | cut -d. -f3)
+              BASE="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+            fi
+
+            # Check if any higher-precedence prerelease has a higher base
+            for hpv in $HIGHER_PREC_VERSIONS; do
+              # Extract base version from prerelease (e.g., v1.2.3-rc.1 -> v1.2.3)
+              hpv_base=$(echo "$hpv" | sed 's/-[^-]*$//')
+              if [[ $(printf '%s\n' "$BASE" "$hpv_base" | sort -V | tail -1) == "$hpv_base" && "$hpv_base" != "$BASE" ]]; then
+                BASE="$hpv_base"
+                echo "Using base from higher-precedence prerelease: $BASE"
+              fi
+            done
+
+            # Find latest prerelease for this base version and identifier
+            LATEST_PRE=$(git tag -l "${BASE}-${IDENTIFIER}.*" | sort -V | tail -1)
+            if [[ -z "$LATEST_PRE" ]]; then
+              NEXT="${BASE}-${IDENTIFIER}.1"
+            else
+              PRE_NUM=$(echo "$LATEST_PRE" | grep -oE "${IDENTIFIER}\.[0-9]+" | cut -d. -f2)
+              NEXT="${BASE}-${IDENTIFIER}.$((PRE_NUM + 1))"
+            fi
+            echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+            echo "Auto-determined next ${IDENTIFIER} version: $NEXT"
+          fi
   # Extract PR number from release tag (for auto-promotion)
   get-pr-number:
     name: Get PR Number
@@ -327,7 +569,7 @@ jobs:
 
   promote:
     name: Promote PR Image
-    needs: [get-pr-number]
+    needs: [get-pr-number, validate-version]
     if: always() && (inputs.promote_pr_number != '' || needs.get-pr-number.outputs.pr_number != '')
     runs-on: ${{ inputs.runner }}
     outputs:
@@ -340,6 +582,7 @@ jobs:
       packages: write
     env:
       PR_NUMBER: ${{ inputs.promote_pr_number || needs.get-pr-number.outputs.pr_number }}
+      VALIDATED_VERSION: ${{ needs.validate-version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -365,6 +608,14 @@ jobs:
           VERSION="latest"
           EVENT_NAME="${{ github.event_name }}"
           REF="${{ github.ref }}"
+
+          # Use validated version from validate-version job if available
+          if [[ -n "$VALIDATED_VERSION" ]]; then
+            VERSION="$VALIDATED_VERSION"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Using validated version: ${VERSION}"
+            exit 0
+          fi
 
           if [[ "${EVENT_NAME}" == "workflow_dispatch" ]] && [[ -n "${{ github.event.inputs.version || '' }}" ]]; then
             VERSION="${{ github.event.inputs.version }}"
@@ -514,7 +765,7 @@ jobs:
 
   build:
     name: Build and Push with Docker Bake
-    needs: [get-pr-number, promote]
+    needs: [get-pr-number, promote, validate-version]
     if: |
       always() && (
         (github.event_name != 'pull_request' && inputs.promote_pr_number == '' && !(github.event_name == 'release' && inputs.auto_promote_on_release))
@@ -529,6 +780,8 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    env:
+      VALIDATED_VERSION: ${{ needs.validate-version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -559,6 +812,14 @@ jobs:
           VERSION="latest"
           EVENT_NAME="${{ github.event_name }}"
           REF="${{ github.ref }}"
+
+          # Use validated version from validate-version job if available
+          if [[ -n "$VALIDATED_VERSION" ]]; then
+            VERSION="$VALIDATED_VERSION"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Using validated version: ${VERSION}"
+            exit 0
+          fi
 
           if [[ "${EVENT_NAME}" == "workflow_dispatch" ]] && [[ -n "${{ github.event.inputs.version || '' }}" ]]; then
             VERSION="${{ github.event.inputs.version }}"
