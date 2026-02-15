@@ -1,0 +1,344 @@
+name: Lint Scan
+
+# Reusable workflow for code quality linting
+# Runs best-practice checks for Dockerfiles, shell scripts, GitHub Actions workflows,
+# JavaScript/TypeScript (ESLint), and Kubernetes manifests (Kustomize)
+# Does not block PRs by default - use for quality feedback
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'GitHub runner to use'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      fail_on_errors:
+        description: 'Fail the workflow if lint errors are found'
+        required: false
+        type: boolean
+        default: false
+      # ESLint options
+      node_version:
+        description: 'Node.js version for ESLint'
+        required: false
+        type: string
+        default: '22'
+      eslint_script:
+        description: 'npm script to run for linting (e.g., "lint", "eslint")'
+        required: false
+        type: string
+        default: 'lint'
+      # Kustomize options
+      k8s_directory:
+        description: 'Directory containing Kustomize files'
+        required: false
+        type: string
+        default: './k8s'
+      kustomize_version:
+        description: 'Kustomize version to use'
+        required: false
+        type: string
+        default: '5.8.1'
+      kubernetes_version:
+        description: 'Kubernetes version for validation (e.g., 1.32.0)'
+        required: false
+        type: string
+        default: '1.32.0'
+      skip_kubeconform:
+        description: 'Skip kubeconform validation'
+        required: false
+        type: boolean
+        default: false
+      skip_kubescore:
+        description: 'Skip kube-score validation'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      lint_skipped:
+        description: 'Whether lint was skipped due to no relevant changes'
+        value: ${{ jobs.lint-scan.outputs.lint_skipped }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint-scan:
+    name: Lint Scan
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      lint_skipped: ${{ steps.detect.outputs.any_changed != 'true' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      # ============================================
+      # Dynamic File Detection
+      # ============================================
+      - name: Detect changed files
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: detect
+        with:
+          filters: |
+            any_changed:
+              - '**/*'
+            javascript:
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.mjs'
+              - '**/*.cjs'
+              - 'package.json'
+              - 'eslint.config.*'
+              - '.eslintrc*'
+            kustomize:
+              - '**/k8s/**'
+              - '**/kubernetes/**'
+              - '**/kustomize/**'
+              - '**/kustomization.yaml'
+              - '**/kustomization.yml'
+            dockerfile:
+              - '**/Dockerfile'
+              - '**/Dockerfile.*'
+              - '**/*.dockerfile'
+              - 'docker-compose*.yml'
+              - 'docker-compose*.yaml'
+            shell:
+              - '**/*.sh'
+              - '**/*.bash'
+              - '**/*.zsh'
+            workflows:
+              - '.github/workflows/**'
+
+      - name: Detection summary
+        run: |
+          echo "## 🔍 Detected Changes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File Type | Changed |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| JavaScript/TypeScript | ${{ steps.detect.outputs.javascript }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Kustomize/K8s | ${{ steps.detect.outputs.kustomize }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dockerfile | ${{ steps.detect.outputs.dockerfile }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Shell Scripts | ${{ steps.detect.outputs.shell }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GitHub Workflows | ${{ steps.detect.outputs.workflows }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Skip if no changes
+        if: steps.detect.outputs.any_changed != 'true'
+        run: |
+          echo "## ⏭️ Lint Scan Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "No relevant file changes detected." >> $GITHUB_STEP_SUMMARY
+          echo "No changes detected, skipping lint scan"
+
+      # ============================================
+      # JavaScript/TypeScript Linting (ESLint)
+      # ============================================
+      - name: Check for package.json
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true'
+        id: check-package
+        run: |
+          if [ -f "package.json" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            # Check if lint script exists
+            if grep -q "\"${{ inputs.eslint_script }}\"" package.json; then
+              echo "has_lint=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_lint=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::No '${{ inputs.eslint_script }}' script found in package.json"
+            fi
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "has_lint=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true' && steps.check-package.outputs.has_lint == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true' && steps.check-package.outputs.has_lint == 'true'
+        run: npm ci --ignore-scripts
+
+      - name: Run ESLint
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true' && steps.check-package.outputs.has_lint == 'true'
+        run: npm run ${{ inputs.eslint_script }}
+        continue-on-error: ${{ !inputs.fail_on_errors }}
+
+      # ============================================
+      # Kustomize/Kubernetes Linting
+      # ============================================
+      - name: Check for Kustomize files
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true'
+        id: check-kustomize
+        run: |
+          K8S_DIR="${{ inputs.k8s_directory }}"
+          K8S_DIR="${K8S_DIR#./}"
+          if [ -d "$K8S_DIR" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "normalized_path=${K8S_DIR}" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Kustomize directory '${{ inputs.k8s_directory }}' not found"
+          fi
+
+      - name: Setup Kustomize
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
+        run: |
+          KUSTOMIZE_VERSION="${{ inputs.kustomize_version }}"
+          echo "Installing kustomize v${KUSTOMIZE_VERSION}"
+          curl -sLO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          tar xzf "kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          sudo mv kustomize /usr/local/bin/
+          rm "kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          kustomize version
+
+      - name: Setup yamllint
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
+        run: pip install yamllint==1.35.1
+
+      - name: Lint YAML files
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
+        run: |
+          yamllint "${{ inputs.k8s_directory }}/" || echo "::warning::YAML linting found issues"
+        continue-on-error: true
+
+      - name: Build Kustomize manifests
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
+        id: kustomize-build
+        run: |
+          find "${{ inputs.k8s_directory }}" \( -name 'kustomization.yaml' -o -name 'kustomization.yml' \) | while read -r kustomization_file; do
+            kustomization_dir=$(dirname "$kustomization_file")
+            echo "Building Kustomize in: $kustomization_dir"
+            kustomize build "$kustomization_dir" >> rendered-manifests.yaml
+            echo "---" >> rendered-manifests.yaml
+          done
+
+          if [ ! -s rendered-manifests.yaml ]; then
+            echo "::warning::No Kustomize manifests were built"
+            exit 0
+          fi
+          echo "Successfully built Kustomize manifests"
+        continue-on-error: ${{ !inputs.fail_on_errors }}
+
+      - name: Validate with kubeconform
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true' && !inputs.skip_kubeconform
+        run: |
+          if [ -f rendered-manifests.yaml ]; then
+            cat rendered-manifests.yaml | docker run --rm -i \
+              ghcr.io/yannh/kubeconform:v0.6.7-alpine \
+              -strict \
+              -summary \
+              -kubernetes-version ${{ inputs.kubernetes_version }}
+          fi
+        continue-on-error: ${{ !inputs.fail_on_errors }}
+
+      - name: Validate with kube-score
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true' && !inputs.skip_kubescore
+        run: |
+          if [ -f rendered-manifests.yaml ]; then
+            K8S_VERSION_SHORT=$(echo "${{ inputs.kubernetes_version }}" | cut -d. -f1-2)
+            if [[ ! "$K8S_VERSION_SHORT" =~ ^v ]]; then
+              K8S_VERSION_SHORT="v${K8S_VERSION_SHORT}"
+            fi
+            cat rendered-manifests.yaml | docker run --rm -i \
+              zegl/kube-score:v1.19.0 \
+              score - \
+              --kubernetes-version "$K8S_VERSION_SHORT" \
+              --color always || echo "::warning::kube-score found issues"
+          fi
+        continue-on-error: true
+
+      # ============================================
+      # Dockerfile Linting (Hadolint)
+      # ============================================
+      - name: Run Hadolint (Dockerfile detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.dockerfile == 'true'
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: "Dockerfile"
+          recursive: true
+          failure-threshold: ${{ inputs.fail_on_errors && 'error' || 'ignore' }}
+        continue-on-error: ${{ !inputs.fail_on_errors }}
+
+      # ============================================
+      # Shell Script Linting (ShellCheck)
+      # ============================================
+      - name: Run ShellCheck (shell scripts detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.shell == 'true'
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
+        with:
+          severity: warning
+          scandir: '.'
+        continue-on-error: ${{ !inputs.fail_on_errors }}
+
+      # ============================================
+      # GitHub Actions Linting (Actionlint)
+      # ============================================
+      - name: Run Actionlint (workflows detected)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.workflows == 'true'
+        uses: reviewdog/action-actionlint@e58ee9d111489c31395fbe4857b0be6e7635dbda # v1.70.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          fail_on_error: ${{ inputs.fail_on_errors }}
+        continue-on-error: ${{ !inputs.fail_on_errors }}
+
+      # ============================================
+      # Summary
+      # ============================================
+      - name: Lint Scan Summary
+        if: steps.detect.outputs.any_changed == 'true'
+        run: |
+          echo "## 🧹 Lint Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.detect.outputs.javascript }}" == "true" ]; then
+            if [ "${{ steps.check-package.outputs.has_lint }}" == "true" ]; then
+              echo "| ESLint (JavaScript/TypeScript) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| ESLint (JavaScript/TypeScript) | ⏭️ No lint script |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "| ESLint (JavaScript/TypeScript) | ⏭️ No JS/TS files |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.kustomize }}" == "true" ]; then
+            if [ "${{ steps.check-kustomize.outputs.exists }}" == "true" ]; then
+              echo "| Kustomize/K8s Lint | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| Kustomize/K8s Lint | ⏭️ No k8s directory |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "| Kustomize/K8s Lint | ⏭️ No K8s files |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.dockerfile }}" == "true" ]; then
+            echo "| Hadolint (Dockerfile) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Hadolint (Dockerfile) | ⏭️ No Dockerfiles |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.shell }}" == "true" ]; then
+            echo "| ShellCheck | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| ShellCheck | ⏭️ No shell scripts |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.detect.outputs.workflows }}" == "true" ]; then
+            echo "| Actionlint | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Actionlint | ⏭️ No workflows |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.fail_on_errors }}" == "true" ]; then
+            echo "⚠️ **Blocking mode:** Lint errors will fail this workflow" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ **Advisory mode:** Lint errors are reported but don't block" >> $GITHUB_STEP_SUMMARY
+          fi
+

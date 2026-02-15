@@ -1,14 +1,16 @@
 # Security Scan - Reusable Workflow
 
-Minimal, fast security scanning with dynamic language detection. Only runs the scans needed based on what files actually changed.
+Security-focused scanning with dynamic language detection. Only runs the scans needed based on what files actually changed. **Blocks PRs** on security findings.
 
 > **✅ Works in Private Repos:** All scanners are free and work without commercial licenses.
 
+> **💡 Looking for linting?** See [lint-scan.yaml](README-lint-scan.md) for Dockerfile, shell script, and workflow linting.
+
 ## Design Philosophy
 
-- **Fast by default** - Only 2 core scans always run (~1-2 min)
+- **Security-focused** - All scans block on findings (no false sense of security)
 - **Dynamic detection** - Language-specific scans run automatically when those files change
-- **Caller-controlled** - Heavy scans (SAST, IaC) must be explicitly enabled
+- **Fast by default** - Only runs relevant scanners
 
 ## What Runs
 
@@ -27,14 +29,12 @@ These run **only if** the relevant files changed:
 | pip-audit | PyPA | `*.py`, `requirements.txt`, `pyproject.toml` | ~20s |
 | npm/yarn/pnpm audit | Node.js | `*.js`, `*.ts`, `package.json`, `*.lock` | ~20s |
 | govulncheck | Go Team | `*.go`, `go.mod` | ~30s |
-| Hadolint | Hadolint | `Dockerfile*`, `docker-compose*.yml` | ~10s |
-| ShellCheck | ShellCheck | `*.sh`, `*.bash`, `*.zsh` | ~10s |
-| Actionlint | Actionlint | `.github/workflows/**` | ~10s |
 | Checkov | Bridgecrew | `*.tf`, `*.yaml`, `k8s/**`, `helm/**` | ~1 min |
 
 ### Optional Scans (Caller Must Enable)
 | Scan | Tool | Input | Time |
 |------|------|-------|------|
+| License Check | Trivy | `enable_license_scan: true` | ~30s |
 | License Check | Trivy | `enable_license_scan: true` | ~30s |
 
 ## Usage
