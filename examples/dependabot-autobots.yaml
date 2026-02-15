@@ -1,0 +1,16 @@
+name: Dependabot Autobots
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * *'  # Daily at 04:17 UTC
+
+jobs:
+  dependabot:
+    uses: calebsargeant/reusable-workflows/.github/workflows/dependabot-generator.yaml@a977831800ef046f28ba5d56ecb99221c5a18768 # 0.0.1
+    permissions:
+      contents: write
+      pull-requests: write
+    secrets:
+      APP_ID: ${{ secrets.RELEASE_APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}

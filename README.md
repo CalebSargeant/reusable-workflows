@@ -169,7 +169,7 @@ After installation, you **must** configure a GitHub Personal Access Token for th
 
 The GitHub token allows servers to:
 - 🚀 **Trigger GitHub Actions workflows** by sending repository dispatch events
-- 🔐 **Authenticate with GitHub API** to access your repository 
+- 🔐 **Authenticate with GitHub API** to access your repository
 - 📡 **Send update notifications** that get routed to appropriate Slack channels
 
 **Security Benefits:**
@@ -217,7 +217,7 @@ sudo journalctl -u auto-update-slack.service | grep "Notification sent successfu
 
 - 🔒 **Store securely**: Only in the server configuration file (`/etc/default/auto-update`)
 - 🚫 **Don't share**: Never commit tokens to version control
-- 🔄 **Rotate regularly**: Generate new tokens periodically  
+- 🔄 **Rotate regularly**: Generate new tokens periodically
 - 📊 **Monitor usage**: Check GitHub token usage in your account settings
 - 🎯 **Minimal scope**: Only grant `repo` access, nothing more
 
@@ -697,7 +697,7 @@ jobs:
             enable_comments: true
             enable_infracost: true
             auto_approve: false
-            
+
           # Staging environment
           - environment: staging
             environment_secret: STAGING_AWS_ROLE_ARN
@@ -707,7 +707,7 @@ jobs:
             enable_comments: true
             enable_infracost: true
             auto_approve: false
-            
+
           # Production environment
           - environment: prod
             environment_secret: PROD_AWS_ROLE_ARN
@@ -717,12 +717,12 @@ jobs:
             enable_comments: false
             enable_infracost: true
             auto_approve: true
-            
+
     # Only run for the matching branch or PRs targeting that branch
     if: |
       (github.ref == format('refs/heads/{0}', matrix.branch)) ||
       (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
-    
+
     uses: CalebSargeant/reusable-workflows/.github/workflows/terragrunt-plan-cost-apply.yaml@main
     with:
       environment: ${{ matrix.environment }}
@@ -774,7 +774,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
+
       - name: Check for changes
         uses: dorny/paths-filter@v3
         id: filter
@@ -811,7 +811,7 @@ jobs:
             enable_comments: true
             enable_infracost: true
             auto_approve: false
-            
+
           # Staging environment
           - environment: staging
             environment_secret: STAGING_AWS_ROLE_ARN
@@ -821,7 +821,7 @@ jobs:
             enable_comments: true
             enable_infracost: true
             auto_approve: false
-            
+
           # Production environment
           - environment: prod
             environment_secret: PROD_AWS_ROLE_ARN
@@ -831,7 +831,7 @@ jobs:
             enable_comments: false
             enable_infracost: true
             auto_approve: true
-            
+
     # Only run for the matching branch/PR AND if there are relevant changes
     if: |
       (
@@ -842,7 +842,7 @@ jobs:
         (github.ref == format('refs/heads/{0}', matrix.branch)) ||
         (github.event_name == 'pull_request' && github.base_ref == matrix.branch)
       )
-    
+
     uses: CalebSargeant/reusable-workflows/.github/workflows/terragrunt-plan-cost-apply.yaml@main
     with:
       environment: ${{ matrix.environment }}
@@ -1017,3 +1017,290 @@ If your Terraform/Terragrunt configuration uses SOPS for managing encrypted secr
 The workflow sets these environment variables when `SOPS_AGE_KEY` is provided:
 - `SOPS_AGE_KEY_FILE` - Path to the Age key file
 - `TF_VAR_sops_age_key_file` - Terraform variable for the Age key file path
+
+## Docker CI/CD Workflow
+
+A comprehensive reusable workflow system for building, testing, and releasing Docker container images with intelligent PR image promotion and flexible versioning.
+
+### 🎯 Overview
+
+This workflow system consists of two reusable workflows that work together:
+
+1. **`docker-ci.yaml`** - Builds and pushes PR images during pull requests
+2. **`docker-release.yaml`** - Handles releases with intelligent PR image promotion
+
+### 🔄 End-to-End Flow: From PR to Release
+
+Here's how the entire process works from creating a PR to having your image released:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           DEVELOPMENT WORKFLOW                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  1. Developer creates PR #42                                                 │
+│     └─> docker-ci.yaml runs                                                  │
+│         └─> Builds image: ghcr.io/org/app:pr-42                             │
+│         └─> Pushes to registry                                               │
+│                                                                              │
+│  2. Developer pushes more commits to PR                                      │
+│     └─> docker-ci.yaml runs again                                            │
+│         └─> Rebuilds image: ghcr.io/org/app:pr-42 (updated)                 │
+│         └─> Also tags as: ghcr.io/org/app:latest (for testing)              │
+│                                                                              │
+│  3. PR is approved and merged to main                                        │
+│     └─> Semantic Release (or manual release) creates release v1.2.3         │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                            RELEASE WORKFLOW                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  4. Release event triggers docker-release.yaml                               │
+│     └─> Finds PR #42 from merge commit                                       │
+│     └─> Checks if pr-42 image digest matches latest                          │
+│         ├─> IF MATCH: Promotes (re-tags) pr-42 → v1.2.3 (no rebuild!)       │
+│         └─> IF OUTDATED: Builds fresh image with v1.2.3 tag                  │
+│                                                                              │
+│  5. Final result:                                                            │
+│     └─> ghcr.io/org/app:v1.2.3   ← Release version                          │
+│     └─> ghcr.io/org/app:latest   ← Also updated                             │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### ⚡ Why This Design?
+
+1. **Fast Releases**: PR images are already built - releases just re-tag (seconds, not minutes)
+2. **Tested Images**: The exact image you tested in the PR is what gets released
+3. **Safety Net**: If the PR image is outdated, a fresh build is triggered automatically
+4. **Single PR Check**: The CI workflow is a single job, so PRs show one check instead of multiple
+
+### 📋 Version Format (Opinionated)
+
+The workflow uses an opinionated versioning scheme:
+
+| Type | Format | Example |
+|------|--------|---------|
+| Stable | `v{major}.{minor}.{patch}` | `v1.2.3` |
+| Prerelease | `v{major}.{minor}.{patch}-{identifier}.{number}` | `v1.2.3-rc.1` |
+
+### 🌿 Branch-to-Version Mapping
+
+You can configure which branches produce which version types using JSON:
+
+```yaml
+# Two branches (most common)
+version_branch_mapping: '{"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}}'
+
+# Three branches
+version_branch_mapping: '{"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}, "develop": {"type": "prerelease", "identifier": "alpha"}}'
+
+# Four branches
+version_branch_mapping: '{"main": {"type": "stable"}, "release": {"type": "prerelease", "identifier": "rc"}, "staging": {"type": "prerelease", "identifier": "beta"}, "develop": {"type": "prerelease", "identifier": "alpha"}}'
+```
+
+**What this does:**
+- **Validation**: Ensures `main` only gets `v1.2.3`, `staging` only gets `v1.2.3-rc.1`, etc.
+- **Auto-increment**: When no version is specified, automatically determines the next version based on existing tags
+- **Precedence**: Respects version precedence (stable > rc > beta > alpha > dev) when calculating base versions
+
+### 🚀 Quick Start
+
+#### 1. Create CI Workflow (for PRs)
+
+Create `.github/workflows/docker-ci.yaml`:
+
+```yaml
+name: Docker CI
+
+on:
+  pull_request:
+    branches: [main, staging]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/docker-ci.yaml@main
+    with:
+      image_name: my-app
+      bake_file: docker-bake.hcl
+      bake_target: default
+    secrets: inherit
+```
+
+#### 2. Create Release Workflow
+
+Create `.github/workflows/docker-release.yaml`:
+
+```yaml
+name: Docker Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        type: choice
+        options:
+          - main
+          - staging
+        default: 'main'
+      version:
+        description: 'Version tag (leave empty to auto-increment)'
+        required: false
+        type: string
+
+jobs:
+  release:
+    uses: CalebSargeant/reusable-workflows/.github/workflows/docker-release.yaml@main
+    with:
+      image_name: my-app
+      bake_file: docker-bake.hcl
+      bake_target: default
+      auto_promote_on_release: ${{ github.event_name == 'release' }}
+      force_version: ${{ inputs.version || '' }}
+      version_branch_mapping: '{"main": {"type": "stable"}, "staging": {"type": "prerelease", "identifier": "rc"}}'
+    secrets: inherit
+```
+
+### 📊 Workflow Inputs
+
+#### docker-ci.yaml
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `container_paths` | Paths that trigger builds (YAML list with `- ` prefix) | Common source files |
+| `bake_file` | Path to docker-bake.hcl | `docker-bake.hcl` |
+| `bake_target` | Docker Bake target to build | `default` |
+| `image_name` | Docker image name (without registry/org) | Uses `bake_target` |
+| `platforms` | Target platforms | `linux/amd64,linux/arm64` |
+| `push` | Push images to registry | `true` |
+| `registry` | Container registry | `ghcr.io` |
+| `runner` | GitHub runner | `ubuntu-latest` |
+
+#### docker-release.yaml
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `bake_file` | Path to docker-bake.hcl | `docker-bake.hcl` |
+| `bake_target` | Docker Bake target to build | `default` |
+| `image_name` | Docker image name | Uses `bake_target` |
+| `platforms` | Target platforms | `linux/amd64,linux/arm64` |
+| `push` | Push images to registry | `true` |
+| `auto_promote_on_release` | Promote PR image on release | `true` |
+| `force_version` | Force specific version | Auto-detected |
+| `version_branch_mapping` | JSON branch-to-version config | `''` (disabled) |
+| `registry` | Container registry | `ghcr.io` |
+| `runner` | GitHub runner | `ubuntu-latest` |
+
+### 🔧 Example docker-bake.hcl
+
+```hcl
+variable "VERSION" {
+  default = "latest"
+}
+
+variable "REGISTRY" {
+  default = "ghcr.io"
+}
+
+variable "IMAGE_NAME" {
+  default = "myorg/myapp"
+}
+
+variable "PLATFORMS" {
+  default = "linux/amd64,linux/arm64"
+}
+
+target "default" {
+  context    = "."
+  dockerfile = "Dockerfile"
+  platforms  = split(",", PLATFORMS)
+  tags = [
+    "${REGISTRY}/${IMAGE_NAME}:${VERSION}",
+    "${REGISTRY}/${IMAGE_NAME}:latest"
+  ]
+}
+```
+
+### 📝 Detailed Scenarios
+
+#### Scenario 1: Normal PR Flow (Happy Path)
+
+```
+1. PR #42 opened against main
+   → CI builds ghcr.io/org/app:pr-42
+
+2. Developer pushes 3 more commits
+   → CI rebuilds pr-42 each time
+   → pr-42 now matches latest
+
+3. PR merged, release v1.0.0 created
+   → Release workflow finds PR #42
+   → Checks: pr-42 digest == latest digest ✓
+   → Promotes: pr-42 → v1.0.0 (instant, no rebuild!)
+```
+
+#### Scenario 2: Outdated PR Image
+
+```
+1. PR #42 merged, but another PR #43 was also merged after
+   → latest now has different content than pr-42
+
+2. Release v1.0.0 created
+   → Release workflow finds PR #42
+   → Checks: pr-42 digest != latest digest ✗
+   → Triggers fresh build with v1.0.0 tag
+```
+
+#### Scenario 3: Manual Dispatch (Staging RC)
+
+```
+1. workflow_dispatch triggered
+   → Branch: staging
+   → Version: (empty)
+
+2. Workflow determines:
+   → Latest stable: v1.0.0
+   → Latest rc for v1.0.1: v1.0.1-rc.2
+   → Auto-increments to: v1.0.1-rc.3
+
+3. Builds and pushes ghcr.io/org/app:v1.0.1-rc.3
+```
+
+#### Scenario 4: Version Validation
+
+```
+1. workflow_dispatch triggered
+   → Branch: main
+   → Version: v1.0.0-rc.1
+
+2. Validation fails!
+   → Error: "main branch requires stable semver (e.g., v1.2.3)"
+   → Workflow exits with error
+```
+
+### 🔐 Required Permissions
+
+```yaml
+permissions:
+  contents: read
+  packages: write      # To push to GHCR
+  pull-requests: read  # To detect file changes
+```
+
+### 📤 Outputs
+
+Both workflows provide these outputs:
+
+| Output | Description |
+|--------|-------------|
+| `version` | The version tag that was built |
+| `image` | Full image name (without tag) |
+| `image_with_tag` | Full image name with tag |
+| `build_skipped` | (CI only) Whether build was skipped due to path filtering |
+| `pr_number` | (Release only) The PR number that was promoted |
+
