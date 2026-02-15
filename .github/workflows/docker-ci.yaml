@@ -211,7 +211,7 @@ jobs:
             # Escape single quotes for YAML single-quoted scalars: ' -> ''
             escaped_pattern=${pattern//\'/\'\'}
             echo "  - '$escaped_pattern'" >> "$RUNNER_TEMP/paths-filter.yml"
-            ((pattern_count++))
+            ((++pattern_count))
           done <<< "${{ inputs.container_paths }}"
 
           # Verify at least one pattern was added
