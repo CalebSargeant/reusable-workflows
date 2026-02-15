@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-02-15)
+
+### Bug Fixes
+
+- Remove continue-on-error for security audits in workflow
+  ([#64](https://github.com/CalebSargeant/reusable-workflows/pull/64),
+  [`3d4f465`](https://github.com/CalebSargeant/reusable-workflows/commit/3d4f465f28b345dee48e89f00c07cd9ec2b21137))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#64](https://github.com/CalebSargeant/reusable-workflows/pull/64),
+  [`3d4f465`](https://github.com/CalebSargeant/reusable-workflows/commit/3d4f465f28b345dee48e89f00c07cd9ec2b21137))
+
+### Features
+
+- Add reusable lint scan workflow for code quality checks
+  ([#64](https://github.com/CalebSargeant/reusable-workflows/pull/64),
+  [`3d4f465`](https://github.com/CalebSargeant/reusable-workflows/commit/3d4f465f28b345dee48e89f00c07cd9ec2b21137))
+
+
 ## v1.2.2 (2026-02-15)
 
 ### Bug Fixes
