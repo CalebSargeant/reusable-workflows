@@ -223,7 +223,7 @@ jobs:
       - name: Run TruffleHog secret detection
         id: trufflehog-scan
         if: steps.detect.outputs.any_changed == 'true'
-        uses: trufflesecurity/trufflehog@v3.93.3
+        uses: trufflesecurity/trufflehog@6961f2bace57ab32b23b3ba40f8f420f6bc7e004 # v3.93.3
         with:
           extra_args: --only-verified ${{ steps.trufflehog-baseline.outputs.exists == 'true' && format('--exclude-paths={0}', inputs.trufflehog_exclude) || '' }}
         continue-on-error: true
@@ -287,12 +287,16 @@ jobs:
       # ============================================
       # CORE: Semgrep SAST (enabled by default)
       # ============================================
+      - name: Setup Semgrep
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
+        run: pip3 install semgrep==${{ env.SEMGREP_VERSION }}
+        env:
+          SEMGREP_VERSION: '1.151.0'
+
       - name: Run Semgrep SAST
         id: semgrep-scan
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
-        uses: semgrep/semgrep@v1.151.0
-        with:
-          config: ${{ inputs.semgrep_config }}
+        run: semgrep scan --sarif --config "${{ inputs.semgrep_config }}" --output semgrep.sarif
         continue-on-error: true
 
       - name: Upload Semgrep SARIF
