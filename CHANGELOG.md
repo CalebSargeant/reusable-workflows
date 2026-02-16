@@ -2,6 +2,56 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-02-15)
+
+### Bug Fixes
+
+- Remove continue-on-error for security audits in workflow
+  ([#64](https://github.com/CalebSargeant/reusable-workflows/pull/64),
+  [`3d4f465`](https://github.com/CalebSargeant/reusable-workflows/commit/3d4f465f28b345dee48e89f00c07cd9ec2b21137))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#64](https://github.com/CalebSargeant/reusable-workflows/pull/64),
+  [`3d4f465`](https://github.com/CalebSargeant/reusable-workflows/commit/3d4f465f28b345dee48e89f00c07cd9ec2b21137))
+
+### Features
+
+- Add reusable lint scan workflow for code quality checks
+  ([#64](https://github.com/CalebSargeant/reusable-workflows/pull/64),
+  [`3d4f465`](https://github.com/CalebSargeant/reusable-workflows/commit/3d4f465f28b345dee48e89f00c07cd9ec2b21137))
+
+
+## v1.2.2 (2026-02-15)
+
+### Bug Fixes
+
+- Remove continue-on-error for security audits in workflow
+  ([#63](https://github.com/CalebSargeant/reusable-workflows/pull/63),
+  [`37e4f62`](https://github.com/CalebSargeant/reusable-workflows/commit/37e4f6234e0af974b6eef8927c7f69bcd2324514))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#63](https://github.com/CalebSargeant/reusable-workflows/pull/63),
+  [`37e4f62`](https://github.com/CalebSargeant/reusable-workflows/commit/37e4f6234e0af974b6eef8927c7f69bcd2324514))
+
+
+## v1.2.1 (2026-02-15)
+
+### Bug Fixes
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#62](https://github.com/CalebSargeant/reusable-workflows/pull/62),
+  [`1279302`](https://github.com/CalebSargeant/reusable-workflows/commit/1279302faea823a2899bc0eb63987b5a8ae30e37))
+
+
+## v1.2.0 (2026-02-15)
+
+### Features
+
+- Add reusable security scan workflow with dynamic language detection
+  ([#61](https://github.com/CalebSargeant/reusable-workflows/pull/61),
+  [`94d5cf2`](https://github.com/CalebSargeant/reusable-workflows/commit/94d5cf297853dce7d2aee3fc378c1926e723cae6))
+
+
 ## v1.1.5 (2026-02-15)
 
 ### Bug Fixes
