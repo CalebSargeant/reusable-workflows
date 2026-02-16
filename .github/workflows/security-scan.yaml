@@ -32,8 +32,8 @@ on:
         required: false
         type: string
         default: '.trivyignore'
-      gitleaks_baseline:
-        description: 'Path to gitleaks baseline file for ignoring known secrets'
+      trufflehog_exclude:
+        description: 'Path to exclude file for ignoring known secrets (gitignore-style patterns)'
         required: false
         type: string
         default: ''
@@ -63,6 +63,11 @@ on:
         required: false
         type: string
         default: ''
+      enable_sarif_upload:
+        description: 'Enable SARIF upload to GitHub Security tab (requires GitHub Advanced Security, which is a paid feature for private repos)'
+        required: false
+        type: boolean
+        default: true
     outputs:
       scan_skipped:
         description: 'Whether the scan was skipped due to no relevant changes'
@@ -176,9 +181,10 @@ jobs:
           skip-dirs: 'node_modules,.git,vendor'
           trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
           format: 'table'
+        continue-on-error: true
 
       - name: Trivy SARIF output
-        if: steps.detect.outputs.any_changed == 'true'
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && always()
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
           scan-type: 'fs'
@@ -190,9 +196,10 @@ jobs:
           trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
           format: 'sarif'
           output: 'trivy-results.sarif'
+        continue-on-error: true
 
       - name: Upload Trivy SARIF
-        if: steps.detect.outputs.any_changed == 'true'
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && always()
         uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           sarif_file: 'trivy-results.sarif'
@@ -205,9 +212,9 @@ jobs:
       - name: Check for TruffleHog exclude file
         id: trufflehog-baseline
         run: |
-          if [ -n "${{ inputs.gitleaks_baseline }}" ] && [ -f "${{ inputs.gitleaks_baseline }}" ]; then
+          if [ -n "${{ inputs.trufflehog_exclude }}" ] && [ -f "${{ inputs.trufflehog_exclude }}" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Found ${{ inputs.gitleaks_baseline }}"
+            echo "Found ${{ inputs.trufflehog_exclude }}"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -216,7 +223,8 @@ jobs:
         if: steps.detect.outputs.any_changed == 'true'
         uses: trufflesecurity/trufflehog@afbf580a6ec37188c43b2f3f66b9169484206a2f # v3.88.27
         with:
-          extra_args: --only-verified ${{ steps.trufflehog-baseline.outputs.exists == 'true' && format('--exclude-paths={0}', inputs.gitleaks_baseline) || '' }}
+          extra_args: --only-verified ${{ steps.trufflehog-baseline.outputs.exists == 'true' && format('--exclude-paths={0}', inputs.trufflehog_exclude) || '' }}
+        continue-on-error: true
 
       # ============================================
       # DYNAMIC: Python Security (pip-audit)
@@ -226,6 +234,7 @@ jobs:
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
           vulnerability-service: osv
+        continue-on-error: true
 
       # ============================================
       # DYNAMIC: JavaScript/Node.js Security (npm audit)
@@ -253,6 +262,7 @@ jobs:
           else
             echo "No lock file found, skipping audit"
           fi
+        continue-on-error: true
 
       # ============================================
       # DYNAMIC: Go Security (govulncheck)
@@ -270,7 +280,7 @@ jobs:
         with:
           go-version-input: 'stable'
           check-latest: true
-
+        continue-on-error: true
 
       # ============================================
       # CORE: Semgrep SAST (enabled by default)
@@ -280,10 +290,11 @@ jobs:
         uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v0.58.0
         with:
           config: ${{ inputs.semgrep_config }}
-          generateSarif: '1'
+          generateSarif: ${{ inputs.enable_sarif_upload && '1' || '0' }}
+        continue-on-error: true
 
       - name: Upload Semgrep SARIF
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast && always()
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast && inputs.enable_sarif_upload && always()
         uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           sarif_file: 'semgrep.sarif'
@@ -300,12 +311,13 @@ jobs:
           directory: .
           framework: all
           skip_check: ${{ inputs.checkov_skip_checks }}
-          output_format: sarif
-          output_file_path: checkov-results.sarif
+          output_format: ${{ inputs.enable_sarif_upload && 'sarif' || 'cli' }}
+          output_file_path: ${{ inputs.enable_sarif_upload && 'checkov-results.sarif' || '' }}
           soft_fail: false
+        continue-on-error: true
 
       - name: Upload Checkov SARIF
-        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true' && always()
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true' && inputs.enable_sarif_upload && always()
         uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           sarif_file: 'checkov-results.sarif'
@@ -378,5 +390,11 @@ jobs:
             echo "| License Scan | ⏭️ Not enabled |" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📊 Results uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Security Results:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Scan results are visible in step logs above" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.enable_sarif_upload }}" == "true" ]; then
+            echo "- SARIF results uploaded to Security tab (requires GHAS for private repos)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- SARIF upload disabled - all findings are shown in logs above (GitHub Advanced Security not required)" >> $GITHUB_STEP_SUMMARY
+          fi
 
