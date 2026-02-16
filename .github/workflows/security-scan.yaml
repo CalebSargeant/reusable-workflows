@@ -290,7 +290,7 @@ jobs:
       - name: Run Semgrep SAST
         id: semgrep-scan
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
-        uses: semgrep/semgrep-action@v1.151.0
+        uses: semgrep/semgrep@v1.151.0
         with:
           config: ${{ inputs.semgrep_config }}
         continue-on-error: true
