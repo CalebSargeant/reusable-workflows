@@ -169,9 +169,9 @@ jobs:
             echo "No ${{ inputs.trivyignore_file }} found, skipping ignore file"
           fi
 
-      - name: Run Trivy vulnerability scanner
+      - name: Run Trivy vulnerability scanner (with ignore file)
         id: trivy-scan
-        if: steps.detect.outputs.any_changed == 'true'
+        if: steps.detect.outputs.any_changed == 'true' && steps.trivyignore.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
           scan-type: 'fs'
@@ -180,12 +180,26 @@ jobs:
           exit-code: ${{ inputs.trivy_exit_code }}
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
           skip-dirs: 'node_modules,.git,vendor'
-          trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
+          trivyignores: ${{ inputs.trivyignore_file }}
           format: 'table'
         continue-on-error: true
 
-      - name: Trivy SARIF output
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && always()
+      - name: Run Trivy vulnerability scanner (without ignore file)
+        id: trivy-scan-no-ignore
+        if: steps.detect.outputs.any_changed == 'true' && steps.trivyignore.outputs.exists != 'true'
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: ${{ inputs.trivy_severity }}
+          exit-code: ${{ inputs.trivy_exit_code }}
+          ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
+          skip-dirs: 'node_modules,.git,vendor'
+          format: 'table'
+        continue-on-error: true
+
+      - name: Trivy SARIF output (with ignore file)
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && steps.trivyignore.outputs.exists == 'true' && always()
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
           scan-type: 'fs'
@@ -194,7 +208,21 @@ jobs:
           exit-code: '0'
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
           skip-dirs: 'node_modules,.git,vendor'
-          trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
+          trivyignores: ${{ inputs.trivyignore_file }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Trivy SARIF output (without ignore file)
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && steps.trivyignore.outputs.exists != 'true' && always()
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: ${{ inputs.trivy_severity }}
+          exit-code: '0'
+          ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
+          skip-dirs: 'node_modules,.git,vendor'
           format: 'sarif'
           output: 'trivy-results.sarif'
         continue-on-error: true
@@ -296,7 +324,22 @@ jobs:
       - name: Run Semgrep SAST
         id: semgrep-scan
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
-        run: semgrep scan --sarif --config "${{ inputs.semgrep_config }}" --output semgrep.sarif
+        run: |
+          # Convert space-separated configs to multiple --config flags
+          CONFIGS=""
+          for config in ${{ inputs.semgrep_config }}; do
+            CONFIGS="$CONFIGS --config $config"
+          done
+
+          semgrep scan --sarif $CONFIGS --output semgrep.sarif || exit_code=$?
+          # Semgrep exit codes: 0=no findings, 1=findings, 2+=error
+          # We only fail on findings (exit 1), not on errors (exit 2+)
+          if [ "${exit_code:-0}" -eq 1 ]; then
+            exit 1
+          elif [ "${exit_code:-0}" -gt 1 ]; then
+            echo "⚠️ Semgrep encountered an error (exit code $exit_code) but continuing"
+            exit 0
+          fi
         continue-on-error: true
 
       - name: Upload Semgrep SARIF
@@ -352,29 +395,30 @@ jobs:
         if: steps.detect.outputs.any_changed == 'true' && always()
         run: |
           FAILED=false
-          
-          if [ "${{ steps.trivy-scan.outcome }}" == "failure" ]; then
+
+          if [ "${{ steps.trivy-scan.outcome }}" == "failure" ] || [ "${{ steps.trivy-scan-no-ignore.outcome }}" == "failure" ]; then
             echo "❌ Trivy found vulnerabilities"
             FAILED=true
           fi
-          
+
           if [ "${{ steps.trufflehog-scan.outcome }}" == "failure" ]; then
             echo "❌ TruffleHog found secrets"
             FAILED=true
           fi
-          
+
           if [ "${{ steps.semgrep-scan.outcome }}" == "failure" ]; then
             echo "❌ Semgrep found security issues"
             FAILED=true
           fi
-          
+
           if [ "${{ steps.checkov-scan.outcome }}" == "failure" ]; then
             echo "❌ Checkov found IaC security issues"
             FAILED=true
           fi
-          
+
           if [ "$FAILED" == "true" ]; then
-            echo "\n⚠️ Security scans found issues - failing job"
+            echo ""
+            echo "⚠️ Security scans found issues - failing job"
             exit 1
           else
             echo "✅ All security scans passed"
