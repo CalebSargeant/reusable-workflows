@@ -170,6 +170,7 @@ jobs:
           fi
 
       - name: Run Trivy vulnerability scanner
+        id: trivy-scan
         if: steps.detect.outputs.any_changed == 'true'
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
@@ -220,8 +221,9 @@ jobs:
           fi
 
       - name: Run TruffleHog secret detection
+        id: trufflehog-scan
         if: steps.detect.outputs.any_changed == 'true'
-        uses: trufflesecurity/trufflehog@afbf580a6ec37188c43b2f3f66b9169484206a2f # v3.88.27
+        uses: trufflesecurity/trufflehog@v3.93.3
         with:
           extra_args: --only-verified ${{ steps.trufflehog-baseline.outputs.exists == 'true' && format('--exclude-paths={0}', inputs.trufflehog_exclude) || '' }}
         continue-on-error: true
@@ -286,11 +288,11 @@ jobs:
       # CORE: Semgrep SAST (enabled by default)
       # ============================================
       - name: Run Semgrep SAST
+        id: semgrep-scan
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
-        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v0.58.0
+        uses: semgrep/semgrep-action@v1.151.0
         with:
           config: ${{ inputs.semgrep_config }}
-          generateSarif: ${{ inputs.enable_sarif_upload && '1' || '0' }}
         continue-on-error: true
 
       - name: Upload Semgrep SARIF
@@ -305,6 +307,7 @@ jobs:
       # DYNAMIC: Checkov IaC Scan (Terraform/K8s/Docker)
       # ============================================
       - name: Run Checkov IaC scan (IaC detected)
+        id: checkov-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true'
         uses: bridgecrewio/checkov-action@b3c44b4437c93549fc8cfaef9208497ba4955d39 # v12.3081.0
         with:
@@ -337,6 +340,41 @@ jobs:
           exit-code: '1'
           severity: 'UNKNOWN,HIGH,CRITICAL'
         continue-on-error: true
+
+      # ============================================
+      # Final Status Check
+      # ============================================
+      - name: Check for security findings
+        if: steps.detect.outputs.any_changed == 'true' && always()
+        run: |
+          FAILED=false
+          
+          if [ "${{ steps.trivy-scan.outcome }}" == "failure" ]; then
+            echo "❌ Trivy found vulnerabilities"
+            FAILED=true
+          fi
+          
+          if [ "${{ steps.trufflehog-scan.outcome }}" == "failure" ]; then
+            echo "❌ TruffleHog found secrets"
+            FAILED=true
+          fi
+          
+          if [ "${{ steps.semgrep-scan.outcome }}" == "failure" ]; then
+            echo "❌ Semgrep found security issues"
+            FAILED=true
+          fi
+          
+          if [ "${{ steps.checkov-scan.outcome }}" == "failure" ]; then
+            echo "❌ Checkov found IaC security issues"
+            FAILED=true
+          fi
+          
+          if [ "$FAILED" == "true" ]; then
+            echo "\n⚠️ Security scans found issues - failing job"
+            exit 1
+          else
+            echo "✅ All security scans passed"
+          fi
 
       # ============================================
       # Summary
