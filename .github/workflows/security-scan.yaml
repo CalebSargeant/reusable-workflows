@@ -200,7 +200,7 @@ jobs:
 
       - name: Upload Trivy SARIF
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && always()
-        uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        uses: github/codeql-action/upload-sarif@9e907b5e64f6b83e7804b09294d44122997950d6 # v4.32.3.4.32.32.4.32.3
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'trivy'
@@ -295,7 +295,7 @@ jobs:
 
       - name: Upload Semgrep SARIF
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast && inputs.enable_sarif_upload && always()
-        uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        uses: github/codeql-action/upload-sarif@9e907b5e64f6b83e7804b09294d44122997950d6 # v4.32.3.4.32.32.4.32.3
         with:
           sarif_file: 'semgrep.sarif'
           category: 'semgrep'
@@ -318,7 +318,7 @@ jobs:
 
       - name: Upload Checkov SARIF
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true' && inputs.enable_sarif_upload && always()
-        uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
+        uses: github/codeql-action/upload-sarif@9e907b5e64f6b83e7804b09294d44122997950d6 # v4.32.3.4.32.32.4.32.3
         with:
           sarif_file: 'checkov-results.sarif'
           category: 'checkov'
