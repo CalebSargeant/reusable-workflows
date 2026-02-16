@@ -2,6 +2,51 @@
 
 <!-- version list -->
 
+## v1.9.0 (2026-02-16)
+
+### Bug Fixes
+
+- Handle absence of Trivy ignore file by running scanner without ignore and updating SARIF output
+  steps ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+- Remove continue-on-error for security audits in workflow
+  ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+- Specify 'vuln' scanner for Trivy steps in security-scan workflow
+  ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+- Update security scan workflow to handle optional SARIF upload and trufflehog exclude file
+  ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+- Update Semgrep SAST step to install and run via CLI instead of GitHub Action
+  ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+- Update Semgrep SAST step to use correct action reference in workflow
+  ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+### Chores
+
+- Check the status of all checks as the last step, to allow us to see results of all scans run in
+  the mono-job ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+### Features
+
+- Add reusable lint scan workflow for code quality checks
+  ([#75](https://github.com/CalebSargeant/reusable-workflows/pull/75),
+  [`ec2b78a`](https://github.com/CalebSargeant/reusable-workflows/commit/ec2b78a5d79be8985567ace0921249f8f995e5d0))
+
+
 ## v1.8.0 (2026-02-16)
 
 ### Bug Fixes
