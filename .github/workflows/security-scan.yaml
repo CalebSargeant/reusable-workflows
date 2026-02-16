@@ -176,6 +176,7 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
+          scanners: 'vuln'
           severity: ${{ inputs.trivy_severity }}
           exit-code: ${{ inputs.trivy_exit_code }}
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
@@ -191,6 +192,7 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
+          scanners: 'vuln'
           severity: ${{ inputs.trivy_severity }}
           exit-code: ${{ inputs.trivy_exit_code }}
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
@@ -204,6 +206,7 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
+          scanners: 'vuln'
           severity: ${{ inputs.trivy_severity }}
           exit-code: '0'
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
@@ -219,6 +222,7 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
+          scanners: 'vuln'
           severity: ${{ inputs.trivy_severity }}
           exit-code: '0'
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
