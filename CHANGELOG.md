@@ -2,6 +2,76 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-02-16)
+
+### Bug Fixes
+
+- Remove continue-on-error for security audits in workflow
+  ([#73](https://github.com/CalebSargeant/reusable-workflows/pull/73),
+  [`b9e96ef`](https://github.com/CalebSargeant/reusable-workflows/commit/b9e96efee0ef7b75100918b4a65f02ff595042b6))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#73](https://github.com/CalebSargeant/reusable-workflows/pull/73),
+  [`b9e96ef`](https://github.com/CalebSargeant/reusable-workflows/commit/b9e96efee0ef7b75100918b4a65f02ff595042b6))
+
+- Update security scan workflow to handle optional SARIF upload and trufflehog exclude file
+  ([#73](https://github.com/CalebSargeant/reusable-workflows/pull/73),
+  [`b9e96ef`](https://github.com/CalebSargeant/reusable-workflows/commit/b9e96efee0ef7b75100918b4a65f02ff595042b6))
+
+- Update Semgrep SAST step to install and run via CLI instead of GitHub Action
+  ([#73](https://github.com/CalebSargeant/reusable-workflows/pull/73),
+  [`b9e96ef`](https://github.com/CalebSargeant/reusable-workflows/commit/b9e96efee0ef7b75100918b4a65f02ff595042b6))
+
+- Update Semgrep SAST step to use correct action reference in workflow
+  ([#73](https://github.com/CalebSargeant/reusable-workflows/pull/73),
+  [`b9e96ef`](https://github.com/CalebSargeant/reusable-workflows/commit/b9e96efee0ef7b75100918b4a65f02ff595042b6))
+
+### Chores
+
+- Check the status of all checks as the last step, to allow us to see results of all scans run in
+  the mono-job ([#73](https://github.com/CalebSargeant/reusable-workflows/pull/73),
+  [`b9e96ef`](https://github.com/CalebSargeant/reusable-workflows/commit/b9e96efee0ef7b75100918b4a65f02ff595042b6))
+
+### Features
+
+- Add reusable lint scan workflow for code quality checks
+  ([#73](https://github.com/CalebSargeant/reusable-workflows/pull/73),
+  [`b9e96ef`](https://github.com/CalebSargeant/reusable-workflows/commit/b9e96efee0ef7b75100918b4a65f02ff595042b6))
+
+
+## v1.6.0 (2026-02-16)
+
+### Bug Fixes
+
+- Remove continue-on-error for security audits in workflow
+  ([#72](https://github.com/CalebSargeant/reusable-workflows/pull/72),
+  [`65346bc`](https://github.com/CalebSargeant/reusable-workflows/commit/65346bcf3ab270517e5931811f96d53b60e83338))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#72](https://github.com/CalebSargeant/reusable-workflows/pull/72),
+  [`65346bc`](https://github.com/CalebSargeant/reusable-workflows/commit/65346bcf3ab270517e5931811f96d53b60e83338))
+
+- Update security scan workflow to handle optional SARIF upload and trufflehog exclude file
+  ([#72](https://github.com/CalebSargeant/reusable-workflows/pull/72),
+  [`65346bc`](https://github.com/CalebSargeant/reusable-workflows/commit/65346bcf3ab270517e5931811f96d53b60e83338))
+
+- Update Semgrep SAST step to use correct action reference in workflow
+  ([#72](https://github.com/CalebSargeant/reusable-workflows/pull/72),
+  [`65346bc`](https://github.com/CalebSargeant/reusable-workflows/commit/65346bcf3ab270517e5931811f96d53b60e83338))
+
+### Chores
+
+- Check the status of all checks as the last step, to allow us to see results of all scans run in
+  the mono-job ([#72](https://github.com/CalebSargeant/reusable-workflows/pull/72),
+  [`65346bc`](https://github.com/CalebSargeant/reusable-workflows/commit/65346bcf3ab270517e5931811f96d53b60e83338))
+
+### Features
+
+- Add reusable lint scan workflow for code quality checks
+  ([#72](https://github.com/CalebSargeant/reusable-workflows/pull/72),
+  [`65346bc`](https://github.com/CalebSargeant/reusable-workflows/commit/65346bcf3ab270517e5931811f96d53b60e83338))
+
+
 ## v1.5.0 (2026-02-16)
 
 ### Bug Fixes
