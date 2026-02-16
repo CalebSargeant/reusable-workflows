@@ -357,6 +357,23 @@ jobs:
       # ============================================
       # DYNAMIC: Checkov IaC Scan (Terraform/K8s/Docker)
       # ============================================
+      - name: Check for Checkov config file
+        id: checkov-config
+        run: |
+          if [ -f ".checkov.yaml" ] || [ -f ".checkov.yml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            if [ -f ".checkov.yaml" ]; then
+              echo "file=.checkov.yaml" >> "$GITHUB_OUTPUT"
+              echo "Found .checkov.yaml"
+            else
+              echo "file=.checkov.yml" >> "$GITHUB_OUTPUT"
+              echo "Found .checkov.yml"
+            fi
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No Checkov config file found"
+          fi
+
       - name: Run Checkov IaC scan (IaC detected)
         id: checkov-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true'
@@ -364,6 +381,7 @@ jobs:
         with:
           directory: .
           framework: all
+          config_file: ${{ steps.checkov-config.outputs.exists == 'true' && steps.checkov-config.outputs.file || '' }}
           skip_check: ${{ inputs.checkov_skip_checks }}
           output_format: ${{ inputs.enable_sarif_upload && 'sarif' || 'cli' }}
           output_file_path: ${{ inputs.enable_sarif_upload && 'checkov-results.sarif' || '' }}
