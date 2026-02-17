@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v1.9.2 (2026-02-17)
+
+### Bug Fixes
+
+- Add Checkov config file detection and use in IaC scan step
+  ([#77](https://github.com/CalebSargeant/reusable-workflows/pull/77),
+  [`8eeebaa`](https://github.com/CalebSargeant/reusable-workflows/commit/8eeebaa4a02ffdda7312e569456a9c179477a096))
+
+- Add container path filtering to skip builds when no relevant files change
+  ([#77](https://github.com/CalebSargeant/reusable-workflows/pull/77),
+  [`8eeebaa`](https://github.com/CalebSargeant/reusable-workflows/commit/8eeebaa4a02ffdda7312e569456a9c179477a096))
+
+- Update .github/workflows/docker-release.yaml
+  ([#77](https://github.com/CalebSargeant/reusable-workflows/pull/77),
+  [`8eeebaa`](https://github.com/CalebSargeant/reusable-workflows/commit/8eeebaa4a02ffdda7312e569456a9c179477a096))
+
+
 ## v1.9.1 (2026-02-16)
 
 ### Bug Fixes
