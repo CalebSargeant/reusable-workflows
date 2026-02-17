@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.9.1 (2026-02-16)
+
+### Bug Fixes
+
+- Add Checkov config file detection and use in IaC scan step
+  ([#76](https://github.com/CalebSargeant/reusable-workflows/pull/76),
+  [`466671c`](https://github.com/CalebSargeant/reusable-workflows/commit/466671c471fbcac2f6f6b268a49df357080ccd7f))
+
+
 ## v1.9.0 (2026-02-16)
 
 ### Bug Fixes
