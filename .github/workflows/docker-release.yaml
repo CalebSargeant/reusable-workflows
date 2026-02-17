@@ -1013,7 +1013,7 @@ jobs:
 
       - name: Export build variables
         if: steps.filter.outputs.container == 'true' && inputs.buildx_vars != ''
-        run:
+        run: |
           # Export each KEY=VALUE pair as environment variable for docker/bake-action
           # Bake automatically picks up env vars matching variable names in the HCL file
           printf '%s\n' "${{ inputs.buildx_vars }}" >> "$GITHUB_ENV"
