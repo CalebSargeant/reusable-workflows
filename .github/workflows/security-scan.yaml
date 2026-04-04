@@ -36,7 +36,7 @@ on:
         description: 'Trivy version to use'
         required: false
         type: string
-        default: 'v0.68.2'
+        default: 'v0.69.3'
       trivyignore_file:
         description: 'Path to trivyignore file for whitelisting known CVEs (only used if file exists)'
         required: false
@@ -184,30 +184,38 @@ jobs:
         if: steps.detect.outputs.any_changed == 'true'
         run: |
           set -euo pipefail
-          TRIVY_VERSION="${{ inputs.trivy_version }}"
-          TRIVY_VERSION_NO_V="${TRIVY_VERSION#v}"
-          ARCHIVE="trivy_${TRIVY_VERSION_NO_V}_Linux-64bit.tar.gz"
-          DOWNLOAD_URL="https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/${ARCHIVE}"
-          INSTALL_DIR="${RUNNER_TEMP}/trivy-install"
+          REQUESTED_TRIVY_VERSION="${{ inputs.trivy_version }}"
+          INSTALL_SCRIPT="${RUNNER_TEMP}/install-trivy.sh"
+          INSTALL_MODE="requested"
 
-          mkdir -p "$INSTALL_DIR" "$HOME/.local/bin"
-          rm -f "$INSTALL_DIR/$ARCHIVE" "$INSTALL_DIR/trivy"
+          mkdir -p "$HOME/.local/bin"
 
           for attempt in 1 2 3; do
-            if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "$DOWNLOAD_URL" -o "$INSTALL_DIR/$ARCHIVE"; then
+            if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh" -o "$INSTALL_SCRIPT"; then
               break
             fi
             if [ "$attempt" -eq 3 ]; then
-              echo "::error::Failed to download Trivy $TRIVY_VERSION after 3 attempts"
+              echo "::error::Failed to download Trivy installer script after 3 attempts"
               exit 1
             fi
             sleep $((attempt * 3))
           done
+          chmod +x "$INSTALL_SCRIPT"
 
-          tar -xzf "$INSTALL_DIR/$ARCHIVE" -C "$INSTALL_DIR" trivy
-          install -m 0755 "$INSTALL_DIR/trivy" "$HOME/.local/bin/trivy"
+          if ! bash "$INSTALL_SCRIPT" -b "$HOME/.local/bin" "$REQUESTED_TRIVY_VERSION"; then
+            echo "::warning::Failed to install requested Trivy version '$REQUESTED_TRIVY_VERSION'. Falling back to latest."
+            if ! bash "$INSTALL_SCRIPT" -b "$HOME/.local/bin" latest; then
+              echo "::error::Failed to install Trivy using requested version and fallback latest."
+              exit 1
+            fi
+            INSTALL_MODE="fallback_latest"
+          fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/trivy" --version
+          TRIVY_VERSION_OUTPUT="$("$HOME/.local/bin/trivy" --version)"
+          TRIVY_VERSION_OUTPUT="${TRIVY_VERSION_OUTPUT%%$'\n'*}"
+          echo "install_mode=$INSTALL_MODE" >> "$GITHUB_OUTPUT"
+          echo "resolved_version=$TRIVY_VERSION_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "$TRIVY_VERSION_OUTPUT"
         continue-on-error: true
 
       - name: Run Trivy vulnerability scanner
@@ -499,7 +507,11 @@ jobs:
           echo "| Scanner | Trigger | Result | Notes |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|---------|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
           TRIVY_INSTALL_OUTCOME="${{ steps.trivy-install.outcome }}"
-          add_row "Trivy CLI install" "Always" "$(to_result "$TRIVY_INSTALL_OUTCOME")" "Version: ${{ inputs.trivy_version }}"
+          TRIVY_INSTALL_NOTES="Requested: ${{ inputs.trivy_version }}"
+          if [ "$TRIVY_INSTALL_OUTCOME" = "success" ]; then
+            TRIVY_INSTALL_NOTES="$TRIVY_INSTALL_NOTES, Installed: ${{ steps.trivy-install.outputs.resolved_version }}, Mode: ${{ steps.trivy-install.outputs.install_mode }}"
+          fi
+          add_row "Trivy CLI install" "Always" "$(to_result "$TRIVY_INSTALL_OUTCOME")" "$TRIVY_INSTALL_NOTES"
           mark_failure "$TRIVY_INSTALL_OUTCOME" "Trivy CLI install"
 
           if [ "$TRIVY_INSTALL_OUTCOME" = "failure" ]; then
