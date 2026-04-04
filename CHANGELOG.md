@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v1.12.0 (2026-04-04)
+
+### Bug Fixes
+
+- Add Checkov config file detection and use in IaC scan step
+  ([#80](https://github.com/CalebSargeant/reusable-workflows/pull/80),
+  [`b3bad91`](https://github.com/CalebSargeant/reusable-workflows/commit/b3bad9143a14488da3d9c6eb18d4467316af047f))
+
+- Enhance Trivy installation and scanning logic to handle failures gracefully
+  ([#80](https://github.com/CalebSargeant/reusable-workflows/pull/80),
+  [`b3bad91`](https://github.com/CalebSargeant/reusable-workflows/commit/b3bad9143a14488da3d9c6eb18d4467316af047f))
+
+- Update Trivy version to v0.69.3 and improve installation script logic
+  ([#80](https://github.com/CalebSargeant/reusable-workflows/pull/80),
+  [`b3bad91`](https://github.com/CalebSargeant/reusable-workflows/commit/b3bad9143a14488da3d9c6eb18d4467316af047f))
+
+### Features
+
+- Add job timeout configuration and enhance lint scan reporting
+  ([#80](https://github.com/CalebSargeant/reusable-workflows/pull/80),
+  [`b3bad91`](https://github.com/CalebSargeant/reusable-workflows/commit/b3bad9143a14488da3d9c6eb18d4467316af047f))
+
+
 ## v1.11.0 (2026-04-04)
 
 ### Bug Fixes
