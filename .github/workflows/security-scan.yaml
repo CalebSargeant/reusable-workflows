@@ -179,10 +179,40 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "No ${{ inputs.trivyignore_file }} found, skipping ignore file"
           fi
+      - name: Install Trivy CLI
+        id: trivy-install
+        if: steps.detect.outputs.any_changed == 'true'
+        run: |
+          set -euo pipefail
+          TRIVY_VERSION="${{ inputs.trivy_version }}"
+          TRIVY_VERSION_NO_V="${TRIVY_VERSION#v}"
+          ARCHIVE="trivy_${TRIVY_VERSION_NO_V}_Linux-64bit.tar.gz"
+          DOWNLOAD_URL="https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/${ARCHIVE}"
+          INSTALL_DIR="${RUNNER_TEMP}/trivy-install"
+
+          mkdir -p "$INSTALL_DIR" "$HOME/.local/bin"
+          rm -f "$INSTALL_DIR/$ARCHIVE" "$INSTALL_DIR/trivy"
+
+          for attempt in 1 2 3; do
+            if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "$DOWNLOAD_URL" -o "$INSTALL_DIR/$ARCHIVE"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to download Trivy $TRIVY_VERSION after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+
+          tar -xzf "$INSTALL_DIR/$ARCHIVE" -C "$INSTALL_DIR" trivy
+          install -m 0755 "$INSTALL_DIR/trivy" "$HOME/.local/bin/trivy"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/trivy" --version
+        continue-on-error: true
 
       - name: Run Trivy vulnerability scanner
         id: trivy-scan
-        if: steps.detect.outputs.any_changed == 'true'
+        if: steps.detect.outputs.any_changed == 'true' && steps.trivy-install.outcome != 'failure'
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           version: ${{ inputs.trivy_version }}
@@ -196,10 +226,11 @@ jobs:
           trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
           format: 'table'
           timeout: '10m0s'
+          skip-setup-trivy: true
         continue-on-error: true
 
       - name: Trivy SARIF output
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && always()
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && steps.trivy-install.outcome != 'failure' && always()
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           version: ${{ inputs.trivy_version }}
@@ -218,7 +249,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Trivy SARIF
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && always()
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && steps.trivy-install.outcome != 'failure' && always()
         uses: github/codeql-action/upload-sarif@f5c2471be782132e47a6e6f9c725e56730d6e9a3 # v3.32.3
         with:
           sarif_file: 'trivy-results.sarif'
@@ -419,7 +450,7 @@ jobs:
       # ============================================
       - name: Run license scan
         id: license-scan
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_license_scan
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_license_scan && steps.trivy-install.outcome != 'failure'
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           version: ${{ inputs.trivy_version }}
@@ -467,9 +498,17 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Scanner | Trigger | Result | Notes |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|---------|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          TRIVY_INSTALL_OUTCOME="${{ steps.trivy-install.outcome }}"
+          add_row "Trivy CLI install" "Always" "$(to_result "$TRIVY_INSTALL_OUTCOME")" "Version: ${{ inputs.trivy_version }}"
+          mark_failure "$TRIVY_INSTALL_OUTCOME" "Trivy CLI install"
 
-          TRIVY_OUTCOME="${{ steps.trivy-scan.outcome }}"
-          add_row "Trivy vulnerability scan" "Always" "$(to_result "$TRIVY_OUTCOME")" "Severity: ${{ inputs.trivy_severity }}"
+          if [ "$TRIVY_INSTALL_OUTCOME" = "failure" ]; then
+            add_row "Trivy vulnerability scan" "Always" "⏭️ Skipped" "Skipped because Trivy installation failed"
+          else
+            TRIVY_OUTCOME="${{ steps.trivy-scan.outcome }}"
+            add_row "Trivy vulnerability scan" "Always" "$(to_result "$TRIVY_OUTCOME")" "Severity: ${{ inputs.trivy_severity }}"
+            mark_failure "$TRIVY_OUTCOME" "Trivy vulnerability scan"
+          fi
           mark_failure "$TRIVY_OUTCOME" "Trivy vulnerability scan"
 
           TRUFFLEHOG_OUTCOME="${{ steps.trufflehog-scan.outcome }}"
@@ -521,9 +560,13 @@ jobs:
           fi
 
           if [ "${{ inputs.enable_license_scan }}" = "true" ]; then
-            LICENSE_OUTCOME="${{ steps.license-scan.outcome }}"
-            add_row "Trivy license scan" "Enabled by input" "$(to_result "$LICENSE_OUTCOME")" "Severity: UNKNOWN,HIGH,CRITICAL"
-            mark_failure "$LICENSE_OUTCOME" "Trivy license scan"
+            if [ "$TRIVY_INSTALL_OUTCOME" = "failure" ]; then
+              add_row "Trivy license scan" "Enabled by input" "⏭️ Skipped" "Skipped because Trivy installation failed"
+            else
+              LICENSE_OUTCOME="${{ steps.license-scan.outcome }}"
+              add_row "Trivy license scan" "Enabled by input" "$(to_result "$LICENSE_OUTCOME")" "Severity: UNKNOWN,HIGH,CRITICAL"
+              mark_failure "$LICENSE_OUTCOME" "Trivy license scan"
+            fi
           else
             add_row "Trivy license scan" "Enabled by input" "⏭️ Disabled" "enable_license_scan=false"
           fi
