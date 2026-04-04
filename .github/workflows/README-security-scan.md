@@ -103,7 +103,7 @@ jobs:
 | `trivy_severity` | Severity levels | `CRITICAL,HIGH` |
 | `trivy_exit_code` | Exit code on findings | `1` (fail) |
 | `trivy_ignore_unfixed` | Ignore unfixed CVEs | `true` |
-| `trivy_version` | Trivy CLI version | `v0.68.2` |
+| `trivy_version` | Trivy CLI version | `v0.69.3` |
 | `trivyignore_file` | Path to .trivyignore (only used if exists) | `.trivyignore` |
 | `trufflehog_exclude` | Path to TruffleHog exclude file (only used if exists) | `''` |
 | `semgrep_baseline` | Path to Semgrep ignore file; if empty, `.semgrepignore` is auto-detected | `''` |
