@@ -35,7 +35,6 @@ These run **only if** the relevant files changed:
 | Scan | Tool | Input | Time |
 |------|------|-------|------|
 | License Check | Trivy | `enable_license_scan: true` | ~30s |
-| License Check | Trivy | `enable_license_scan: true` | ~30s |
 
 ## Usage
 
@@ -100,16 +99,19 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `runner` | GitHub runner | `ubuntu-latest` |
+| `job_timeout_minutes` | Maximum job runtime in minutes | `30` |
 | `trivy_severity` | Severity levels | `CRITICAL,HIGH` |
 | `trivy_exit_code` | Exit code on findings | `1` (fail) |
 | `trivy_ignore_unfixed` | Ignore unfixed CVEs | `true` |
+| `trivy_version` | Trivy CLI version | `v0.68.2` |
 | `trivyignore_file` | Path to .trivyignore (only used if exists) | `.trivyignore` |
-| `gitleaks_baseline` | Path to TruffleHog exclude file (only used if exists) | `''` |
-| `semgrep_baseline` | Path to .semgrepignore (auto-detected) | `''` |
+| `trufflehog_exclude` | Path to TruffleHog exclude file (only used if exists) | `''` |
+| `semgrep_baseline` | Path to Semgrep ignore file; if empty, `.semgrepignore` is auto-detected | `''` |
 | `enable_sast` | Enable Semgrep SAST | `true` |
 | `enable_license_scan` | Enable license scan | `false` |
 | `semgrep_config` | Semgrep rules | `p/default p/security-audit p/secrets` |
 | `checkov_skip_checks` | Checkov checks to skip | `''` |
+| `enable_sarif_upload` | Upload SARIF results to GitHub Security tab | `true` |
 
 ## Ignoring Pre-Existing Vulnerabilities
 
@@ -152,7 +154,7 @@ docs/api-examples.md
 Then reference it:
 ```yaml
 with:
-  gitleaks_baseline: '.trufflehogignore'
+  trufflehog_exclude: '.trufflehogignore'
 ```
 
 ### Semgrep (SAST) - `.semgrepignore`
@@ -202,34 +204,6 @@ metadata:
     checkov.io/skip: "CKV_K8S_21=Using host network intentionally"
 ```
 
-### Hadolint (Dockerfile) - `.hadolint.yaml`
-
-Create `.hadolint.yaml` in your repo root:
-
-```yaml
-ignored:
-  - DL3008  # Pin versions in apt-get
-  - DL3013  # Pin versions in pip
-  - DL4006  # Set SHELL option
-
-trustedRegistries:
-  - docker.io
-  - gcr.io
-```
-
-### ShellCheck - Inline Directives
-
-Add directives in your shell scripts:
-
-```bash
-#!/bin/bash
-
-# shellcheck disable=SC2034  # Variable appears unused
-UNUSED_VAR="intentional"
-
-# shellcheck disable=SC2086  # Double quote to prevent globbing
-ls $FILES
-```
 
 ### npm audit - `.nsprc` or `package.json`
 
@@ -267,8 +241,6 @@ govulncheck doesn't support ignoring vulnerabilities. Use Trivy's `.trivyignore`
 | TruffleHog | `.trufflehogignore` | Paths, gitignore syntax |
 | Semgrep | `.semgrepignore` | Paths, gitignore syntax |
 | Checkov | Input or inline | Check IDs |
-| Hadolint | `.hadolint.yaml` | YAML config |
-| ShellCheck | Inline | `# shellcheck disable=SCXXXX` |
 | npm audit | `.nsprc` | JSON advisories |
 
 ## Dynamic Detection
@@ -278,8 +250,6 @@ The workflow automatically detects what languages/files changed and runs the app
 ```
 PR changes:
   - src/main.py          → pip-audit runs
-  - Dockerfile           → Hadolint runs
-  - .github/workflows/   → Actionlint runs
 
 PR changes:
   - src/app.ts           → npm audit runs
@@ -287,7 +257,6 @@ PR changes:
 
 PR changes:
   - cmd/server/main.go   → govulncheck runs
-  - scripts/deploy.sh    → ShellCheck runs
 
 PR changes:
   - terraform/main.tf    → Checkov runs
@@ -307,32 +276,19 @@ PR changes:
 | Python | true |
 | JavaScript/TypeScript | true |
 | Go | false |
-| Dockerfile | true |
-| Shell Scripts | false |
-| GitHub Workflows | true |
 | IaC (Terraform/K8s) | false |
+## 🔒 Security Scan Report
 
-## 🔒 Security Scan Summary
-
-### Core Scans (always run)
-| Check | Status |
-|-------|--------|
-| Trivy Vulnerability Scan | ✅ Completed |
-| TruffleHog Secret Detection | ✅ Completed |
-| Semgrep SAST | ✅ Completed |
-
-### Dynamic Scans (based on detected files)
-| Check | Status |
-|-------|--------|
-| pip-audit (Python) | ✅ Ran |
-| npm audit (JavaScript) | ✅ Ran |
-| Hadolint (Dockerfile) | ✅ Ran |
-| Actionlint | ✅ Ran |
-
-### Optional Scans (caller-enabled)
-| Check | Status |
-|-------|--------|
-| License Scan | ⏭️ Not enabled |
+| Scanner | Trigger | Result | Notes |
+|---------|---------|--------|-------|
+| Trivy vulnerability scan | Always | ✅ Passed | Severity: CRITICAL,HIGH |
+| TruffleHog secret detection | Always | ✅ Passed | --only-verified mode |
+| Semgrep SAST | Enabled by input | ✅ Passed | Config: p/default p/security-audit p/secrets |
+| pip-audit | Python files changed | ✅ Passed | OSV database |
+| npm/yarn/pnpm audit | JavaScript files changed | ✅ Passed | Runs based on detected lockfile |
+| govulncheck | Go files changed | ⏭️ Not triggered | No Go changes detected |
+| Checkov IaC scan | IaC files changed | ⏭️ Not triggered | No IaC changes detected |
+| Trivy license scan | Enabled by input | ⏭️ Disabled | enable_license_scan=false |
 ```
 
 ## Performance
@@ -370,7 +326,7 @@ The workflow detects that no relevant files changed. This is expected for docume
 If you have known vulnerabilities you can't fix yet, add them to the appropriate ignore file:
 
 1. **CVEs:** Add to `.trivyignore`
-2. **Secrets:** Add paths to `.trufflehogignore` and pass via `gitleaks_baseline`
+2. **Secrets:** Add paths to `.trufflehogignore` and pass via `trufflehog_exclude`
 3. **Code issues:** Add paths to `.semgrepignore`
 4. **IaC issues:** Use `checkov_skip_checks` input or inline comments
 

@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: 'ubuntu-latest'
+      job_timeout_minutes:
+        description: 'Maximum job runtime in minutes'
+        required: false
+        type: number
+        default: 25
       fail_on_errors:
         description: 'Fail the workflow if lint errors are found'
         required: false
@@ -68,6 +73,7 @@ jobs:
   lint-scan:
     name: Lint Scan
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.job_timeout_minutes }}
     outputs:
       lint_skipped: ${{ steps.detect.outputs.any_changed != 'true' }}
 
@@ -166,12 +172,31 @@ jobs:
 
       - name: Install dependencies
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true' && steps.check-package.outputs.has_lint == 'true'
-        run: npm ci --ignore-scripts
+        run: |
+          set -euo pipefail
+          if [ -f "package-lock.json" ] || [ -f "npm-shrinkwrap.json" ]; then
+            INSTALL_CMD="npm ci --ignore-scripts"
+          else
+            INSTALL_CMD="npm install --ignore-scripts --no-audit --no-fund"
+            echo "::warning::No npm lock file found. Falling back to npm install."
+          fi
+
+          for attempt in 1 2 3; do
+            if $INSTALL_CMD; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Dependency installation failed after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
       - name: Run ESLint
+        id: eslint-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true' && steps.check-package.outputs.has_lint == 'true'
         run: npm run ${{ inputs.eslint_script }}
-        continue-on-error: ${{ !inputs.fail_on_errors }}
+        continue-on-error: true
 
       # ============================================
       # Kustomize/Kubernetes Linting
@@ -193,19 +218,49 @@ jobs:
       - name: Setup Kustomize
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
         run: |
+          set -euo pipefail
           KUSTOMIZE_VERSION="${{ inputs.kustomize_version }}"
+          ARCHIVE_NAME="kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          DOWNLOAD_URL="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/${ARCHIVE_NAME}"
           echo "Installing kustomize v${KUSTOMIZE_VERSION}"
-          curl -sLO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          tar xzf "kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          sudo mv kustomize /usr/local/bin/
-          rm "kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+          for attempt in 1 2 3; do
+            if curl -fsSL --retry 3 --retry-delay 2 --retry-connrefused "$DOWNLOAD_URL" -o "$ARCHIVE_NAME"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to download kustomize after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+
+          tar xzf "$ARCHIVE_NAME"
+          install -m 0755 kustomize "$HOME/.local/bin/kustomize"
+          rm -f "$ARCHIVE_NAME" kustomize
           kustomize version
 
       - name: Setup yamllint
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
-        run: pip install yamllint==1.35.1
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if python3 -m pip install --user --disable-pip-version-check yamllint==1.35.1; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to install yamllint after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Lint YAML files
+        id: yamllint-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
         run: |
           yamllint "${{ inputs.k8s_directory }}/" || echo "::warning::YAML linting found issues"
@@ -215,7 +270,17 @@ jobs:
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true'
         id: kustomize-build
         run: |
-          find "${{ inputs.k8s_directory }}" \( -name 'kustomization.yaml' -o -name 'kustomization.yml' \) | while read -r kustomization_file; do
+          set -euo pipefail
+          : > rendered-manifests.yaml
+          mapfile -t kustomization_files < <(find "${{ inputs.k8s_directory }}" \( -name 'kustomization.yaml' -o -name 'kustomization.yml' \))
+
+          if [ "${#kustomization_files[@]}" -eq 0 ]; then
+            echo "::warning::No kustomization files found in ${{ inputs.k8s_directory }}"
+            rm -f rendered-manifests.yaml
+            exit 0
+          fi
+
+          for kustomization_file in "${kustomization_files[@]}"; do
             kustomization_dir=$(dirname "$kustomization_file")
             echo "Building Kustomize in: $kustomization_dir"
             kustomize build "$kustomization_dir" >> rendered-manifests.yaml
@@ -227,9 +292,10 @@ jobs:
             exit 0
           fi
           echo "Successfully built Kustomize manifests"
-        continue-on-error: ${{ !inputs.fail_on_errors }}
+        continue-on-error: true
 
       - name: Validate with kubeconform
+        id: kubeconform-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true' && !inputs.skip_kubeconform
         run: |
           if [ -f rendered-manifests.yaml ]; then
@@ -239,9 +305,10 @@ jobs:
               -summary \
               -kubernetes-version ${{ inputs.kubernetes_version }}
           fi
-        continue-on-error: ${{ !inputs.fail_on_errors }}
+        continue-on-error: true
 
       - name: Validate with kube-score
+        id: kubescore-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.kustomize == 'true' && steps.check-kustomize.outputs.exists == 'true' && !inputs.skip_kubescore
         run: |
           if [ -f rendered-manifests.yaml ]; then
@@ -261,84 +328,218 @@ jobs:
       # Dockerfile Linting (Hadolint)
       # ============================================
       - name: Run Hadolint (Dockerfile detected)
+        id: hadolint-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.dockerfile == 'true'
         uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
         with:
           dockerfile: "Dockerfile"
           recursive: true
-          failure-threshold: ${{ inputs.fail_on_errors && 'error' || 'ignore' }}
-        continue-on-error: ${{ !inputs.fail_on_errors }}
+          failure-threshold: error
+        continue-on-error: true
 
       # ============================================
       # Shell Script Linting (ShellCheck)
       # ============================================
       - name: Run ShellCheck (shell scripts detected)
+        id: shellcheck-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.shell == 'true'
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
         with:
           severity: warning
           scandir: '.'
-        continue-on-error: ${{ !inputs.fail_on_errors }}
+        continue-on-error: true
 
       # ============================================
       # GitHub Actions Linting (Actionlint)
       # ============================================
       - name: Run Actionlint (workflows detected)
+        id: actionlint-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.workflows == 'true'
         uses: reviewdog/action-actionlint@e58ee9d111489c31395fbe4857b0be6e7635dbda # v1.70.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: github-pr-review
-          fail_on_error: ${{ inputs.fail_on_errors }}
-        continue-on-error: ${{ !inputs.fail_on_errors }}
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+          fail_on_error: true
+        continue-on-error: true
 
       # ============================================
-      # Summary
+      # Reporting and Final Status
       # ============================================
-      - name: Lint Scan Summary
-        if: steps.detect.outputs.any_changed == 'true'
+      - name: Build lint scan report
+        id: lint-report
+        if: steps.detect.outputs.any_changed == 'true' && always()
         run: |
-          echo "## 🧹 Lint Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.detect.outputs.javascript }}" == "true" ]; then
-            if [ "${{ steps.check-package.outputs.has_lint }}" == "true" ]; then
-              echo "| ESLint (JavaScript/TypeScript) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+          set -eo pipefail
+          FAILED=false
+          BLOCKING_FAILED=()
+          ADVISORY_FAILED=()
+
+          to_result() {
+            case "$1" in
+              success) echo "✅ Passed" ;;
+              failure) echo "❌ Failed" ;;
+              skipped) echo "⏭️ Skipped" ;;
+              cancelled) echo "⚪ Cancelled" ;;
+              *) echo "⚠️ ${1:-unknown}" ;;
+            esac
+          }
+
+          add_row() {
+            echo "| $1 | $2 | $3 | $4 |" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          mark_blocking_failure() {
+            if [ "$1" = "failure" ]; then
+              FAILED=true
+              BLOCKING_FAILED+=("$2")
+            fi
+          }
+
+          mark_advisory_failure() {
+            if [ "$1" = "failure" ]; then
+              ADVISORY_FAILED+=("$2")
+            fi
+          }
+
+          echo "## 🧹 Lint Scan Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.fail_on_errors }}" = "true" ]; then
+            echo "**Mode:** Blocking (`fail_on_errors=true`)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Mode:** Advisory (`fail_on_errors=false`)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Trigger | Result | Notes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|---------|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ steps.detect.outputs.javascript }}" = "true" ]; then
+            if [ "${{ steps.check-package.outputs.has_lint }}" = "true" ]; then
+              ESLINT_OUTCOME="${{ steps.eslint-scan.outcome }}"
+              add_row "ESLint" "JS/TS changes + lint script present" "$(to_result "$ESLINT_OUTCOME")" "npm run ${{ inputs.eslint_script }}"
+              mark_blocking_failure "$ESLINT_OUTCOME" "ESLint"
             else
-              echo "| ESLint (JavaScript/TypeScript) | ⏭️ No lint script |" >> $GITHUB_STEP_SUMMARY
+              add_row "ESLint" "JS/TS changes + lint script present" "⏭️ Not triggered" "No '${{ inputs.eslint_script }}' script in package.json"
             fi
           else
-            echo "| ESLint (JavaScript/TypeScript) | ⏭️ No JS/TS files |" >> $GITHUB_STEP_SUMMARY
+            add_row "ESLint" "JS/TS changes + lint script present" "⏭️ Not triggered" "No JavaScript/TypeScript changes detected"
           fi
-          if [ "${{ steps.detect.outputs.kustomize }}" == "true" ]; then
-            if [ "${{ steps.check-kustomize.outputs.exists }}" == "true" ]; then
-              echo "| Kustomize/K8s Lint | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.detect.outputs.kustomize }}" = "true" ] && [ "${{ steps.check-kustomize.outputs.exists }}" = "true" ]; then
+            YAMLLINT_OUTCOME="${{ steps.yamllint-scan.outcome }}"
+            add_row "yamllint" "K8s files changed + K8s directory exists" "$(to_result "$YAMLLINT_OUTCOME")" "Advisory check"
+            mark_advisory_failure "$YAMLLINT_OUTCOME" "yamllint"
+
+            KUSTOMIZE_BUILD_OUTCOME="${{ steps.kustomize-build.outcome }}"
+            add_row "Kustomize build" "K8s files changed + K8s directory exists" "$(to_result "$KUSTOMIZE_BUILD_OUTCOME")" "Build rendered manifests"
+            mark_blocking_failure "$KUSTOMIZE_BUILD_OUTCOME" "Kustomize build"
+
+            if [ "${{ inputs.skip_kubeconform }}" = "true" ]; then
+              add_row "kubeconform" "K8s files changed + K8s directory exists" "⏭️ Disabled" "skip_kubeconform=true"
             else
-              echo "| Kustomize/K8s Lint | ⏭️ No k8s directory |" >> $GITHUB_STEP_SUMMARY
+              KUBECONFORM_OUTCOME="${{ steps.kubeconform-scan.outcome }}"
+              add_row "kubeconform" "K8s files changed + K8s directory exists" "$(to_result "$KUBECONFORM_OUTCOME")" "Kubernetes schema validation"
+              mark_blocking_failure "$KUBECONFORM_OUTCOME" "kubeconform"
+            fi
+
+            if [ "${{ inputs.skip_kubescore }}" = "true" ]; then
+              add_row "kube-score" "K8s files changed + K8s directory exists" "⏭️ Disabled" "skip_kubescore=true"
+            else
+              KUBESCORE_OUTCOME="${{ steps.kubescore-scan.outcome }}"
+              add_row "kube-score" "K8s files changed + K8s directory exists" "$(to_result "$KUBESCORE_OUTCOME")" "Advisory best-practice check"
+              mark_advisory_failure "$KUBESCORE_OUTCOME" "kube-score"
+            fi
+          elif [ "${{ steps.detect.outputs.kustomize }}" = "true" ] && [ "${{ steps.check-kustomize.outputs.exists }}" != "true" ]; then
+            add_row "yamllint" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "Directory '${{ inputs.k8s_directory }}' not found"
+            add_row "Kustomize build" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "Directory '${{ inputs.k8s_directory }}' not found"
+            if [ "${{ inputs.skip_kubeconform }}" = "true" ]; then
+              add_row "kubeconform" "K8s files changed + K8s directory exists" "⏭️ Disabled" "skip_kubeconform=true"
+            else
+              add_row "kubeconform" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "Directory '${{ inputs.k8s_directory }}' not found"
+            fi
+            if [ "${{ inputs.skip_kubescore }}" = "true" ]; then
+              add_row "kube-score" "K8s files changed + K8s directory exists" "⏭️ Disabled" "skip_kubescore=true"
+            else
+              add_row "kube-score" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "Directory '${{ inputs.k8s_directory }}' not found"
             fi
           else
-            echo "| Kustomize/K8s Lint | ⏭️ No K8s files |" >> $GITHUB_STEP_SUMMARY
+            add_row "yamllint" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "No K8s/Kustomize changes detected"
+            add_row "Kustomize build" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "No K8s/Kustomize changes detected"
+            if [ "${{ inputs.skip_kubeconform }}" = "true" ]; then
+              add_row "kubeconform" "K8s files changed + K8s directory exists" "⏭️ Disabled" "skip_kubeconform=true"
+            else
+              add_row "kubeconform" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "No K8s/Kustomize changes detected"
+            fi
+            if [ "${{ inputs.skip_kubescore }}" = "true" ]; then
+              add_row "kube-score" "K8s files changed + K8s directory exists" "⏭️ Disabled" "skip_kubescore=true"
+            else
+              add_row "kube-score" "K8s files changed + K8s directory exists" "⏭️ Not triggered" "No K8s/Kustomize changes detected"
+            fi
           fi
-          if [ "${{ steps.detect.outputs.dockerfile }}" == "true" ]; then
-            echo "| Hadolint (Dockerfile) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.detect.outputs.dockerfile }}" = "true" ]; then
+            HADOLINT_OUTCOME="${{ steps.hadolint-scan.outcome }}"
+            add_row "Hadolint" "Dockerfile changes detected" "$(to_result "$HADOLINT_OUTCOME")" "Dockerfile lint rules"
+            mark_blocking_failure "$HADOLINT_OUTCOME" "Hadolint"
           else
-            echo "| Hadolint (Dockerfile) | ⏭️ No Dockerfiles |" >> $GITHUB_STEP_SUMMARY
+            add_row "Hadolint" "Dockerfile changes detected" "⏭️ Not triggered" "No Dockerfile changes detected"
           fi
-          if [ "${{ steps.detect.outputs.shell }}" == "true" ]; then
-            echo "| ShellCheck | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.detect.outputs.shell }}" = "true" ]; then
+            SHELLCHECK_OUTCOME="${{ steps.shellcheck-scan.outcome }}"
+            add_row "ShellCheck" "Shell script changes detected" "$(to_result "$SHELLCHECK_OUTCOME")" "Shell script lint rules"
+            mark_blocking_failure "$SHELLCHECK_OUTCOME" "ShellCheck"
           else
-            echo "| ShellCheck | ⏭️ No shell scripts |" >> $GITHUB_STEP_SUMMARY
+            add_row "ShellCheck" "Shell script changes detected" "⏭️ Not triggered" "No shell script changes detected"
           fi
-          if [ "${{ steps.detect.outputs.workflows }}" == "true" ]; then
-            echo "| Actionlint | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.detect.outputs.workflows }}" = "true" ]; then
+            ACTIONLINT_OUTCOME="${{ steps.actionlint-scan.outcome }}"
+            add_row "Actionlint" "Workflow file changes detected" "$(to_result "$ACTIONLINT_OUTCOME")" "GitHub Actions workflow lint rules"
+            mark_blocking_failure "$ACTIONLINT_OUTCOME" "Actionlint"
           else
-            echo "| Actionlint | ⏭️ No workflows |" >> $GITHUB_STEP_SUMMARY
+            add_row "Actionlint" "Workflow file changes detected" "⏭️ Not triggered" "No workflow changes detected"
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.fail_on_errors }}" == "true" ]; then
-            echo "⚠️ **Blocking mode:** Lint errors will fail this workflow" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${#BLOCKING_FAILED[@]}" -gt 0 ]; then
+            BLOCKING_JOINED="$(printf '%s, ' "${BLOCKING_FAILED[@]}")"
+            BLOCKING_JOINED="${BLOCKING_JOINED%, }"
+            echo "### ❌ Blocking check failures" >> "$GITHUB_STEP_SUMMARY"
+            for check in "${BLOCKING_FAILED[@]}"; do
+              echo "- $check" >> "$GITHUB_STEP_SUMMARY"
+            done
+            echo "has_blocking_failures=true" >> "$GITHUB_OUTPUT"
+            echo "blocking_failures=$BLOCKING_JOINED" >> "$GITHUB_OUTPUT"
           else
-            echo "ℹ️ **Advisory mode:** Lint errors are reported but don't block" >> $GITHUB_STEP_SUMMARY
+            echo "✅ No blocking lint failures found." >> "$GITHUB_STEP_SUMMARY"
+            echo "has_blocking_failures=false" >> "$GITHUB_OUTPUT"
+            echo "blocking_failures=" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "${#ADVISORY_FAILED[@]}" -gt 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ⚠️ Advisory check issues" >> "$GITHUB_STEP_SUMMARY"
+            for check in "${ADVISORY_FAILED[@]}"; do
+              echo "- $check" >> "$GITHUB_STEP_SUMMARY"
+            done
+          fi
+
+          if [ "${{ inputs.fail_on_errors }}" = "true" ] && [ "$FAILED" = "true" ]; then
+            echo "should_fail=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_fail=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail job if lint errors found in blocking mode
+        if: steps.detect.outputs.any_changed == 'true' && always()
+        run: |
+          if [ "${{ steps.lint-report.outputs.should_fail }}" = "true" ]; then
+            echo "⚠️ Lint checks failed: ${{ steps.lint-report.outputs.blocking_failures }}"
+            exit 1
+          fi
+          if [ "${{ steps.lint-report.outputs.has_blocking_failures }}" = "true" ]; then
+            echo "ℹ️ Lint issues detected, but workflow is in advisory mode."
+          else
+            echo "✅ Lint checks passed"
           fi
 
