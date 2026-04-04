@@ -22,6 +22,7 @@ jobs:
       pull-requests: read
     # Uncomment and customize as needed:
     # with:
+    #   job_timeout_minutes: 25   # Max runtime in minutes
     #   fail_on_errors: true        # Block PRs on lint errors
     #
     #   # ESLint options

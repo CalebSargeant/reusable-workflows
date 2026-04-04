@@ -99,6 +99,7 @@ jobs:
 | Input | Description | Default |
 |-------|-------------|---------|
 | `runner` | GitHub runner to use | `ubuntu-latest` |
+| `job_timeout_minutes` | Maximum job runtime in minutes | `25` |
 | `fail_on_errors` | Fail workflow on lint errors | `false` |
 | `node_version` | Node.js version for ESLint | `22` |
 | `eslint_script` | npm script to run for linting | `lint` |
@@ -197,18 +198,20 @@ UNUSED_VAR="intentional"
 | Dockerfile | false |
 | Shell Scripts | false |
 | GitHub Workflows | false |
+## 🧹 Lint Scan Report
 
-## 🧹 Lint Scan Summary
+**Mode:** Advisory (`fail_on_errors=false`)
 
-| Check | Status |
-|-------|--------|
-| ESLint (JavaScript/TypeScript) | ✅ Ran |
-| Kustomize/K8s Lint | ✅ Ran |
-| Hadolint (Dockerfile) | ⏭️ No Dockerfiles |
-| ShellCheck | ⏭️ No shell scripts |
-| Actionlint | ⏭️ No workflows |
-
-ℹ️ **Advisory mode:** Lint errors are reported but don't block
+| Check | Trigger | Result | Notes |
+|-------|---------|--------|-------|
+| ESLint | JS/TS changes + lint script present | ✅ Passed | npm run lint |
+| yamllint | K8s files changed + K8s directory exists | ✅ Passed | Advisory check |
+| Kustomize build | K8s files changed + K8s directory exists | ✅ Passed | Build rendered manifests |
+| kubeconform | K8s files changed + K8s directory exists | ✅ Passed | Kubernetes schema validation |
+| kube-score | K8s files changed + K8s directory exists | ⚠️ Failed | Advisory best-practice check |
+| Hadolint | Dockerfile changes detected | ⏭️ Not triggered | No Dockerfile changes detected |
+| ShellCheck | Shell script changes detected | ⏭️ Not triggered | No shell script changes detected |
+| Actionlint | Workflow file changes detected | ⏭️ Not triggered | No workflow changes detected |
 ```
 
 ## Why Separate from Security?

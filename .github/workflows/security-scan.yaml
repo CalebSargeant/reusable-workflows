@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: 'ubuntu-latest'
+      job_timeout_minutes:
+        description: 'Maximum job runtime in minutes'
+        required: false
+        type: number
+        default: 30
       trivy_severity:
         description: 'Trivy severity levels to scan for'
         required: false
@@ -27,6 +32,11 @@ on:
         required: false
         type: boolean
         default: true
+      trivy_version:
+        description: 'Trivy version to use'
+        required: false
+        type: string
+        default: 'v0.68.2'
       trivyignore_file:
         description: 'Path to trivyignore file for whitelisting known CVEs (only used if file exists)'
         required: false
@@ -82,6 +92,7 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.job_timeout_minutes }}
     outputs:
       scan_skipped: ${{ steps.detect.outputs.any_changed != 'true' }}
 
@@ -169,11 +180,12 @@ jobs:
             echo "No ${{ inputs.trivyignore_file }} found, skipping ignore file"
           fi
 
-      - name: Run Trivy vulnerability scanner (with ignore file)
+      - name: Run Trivy vulnerability scanner
         id: trivy-scan
-        if: steps.detect.outputs.any_changed == 'true' && steps.trivyignore.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        if: steps.detect.outputs.any_changed == 'true'
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
+          version: ${{ inputs.trivy_version }}
           scan-type: 'fs'
           scan-ref: '.'
           scanners: 'vuln'
@@ -181,29 +193,16 @@ jobs:
           exit-code: ${{ inputs.trivy_exit_code }}
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
           skip-dirs: 'node_modules,.git,vendor'
-          trivyignores: ${{ inputs.trivyignore_file }}
+          trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
           format: 'table'
+          timeout: '10m0s'
         continue-on-error: true
 
-      - name: Run Trivy vulnerability scanner (without ignore file)
-        id: trivy-scan-no-ignore
-        if: steps.detect.outputs.any_changed == 'true' && steps.trivyignore.outputs.exists != 'true'
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+      - name: Trivy SARIF output
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && always()
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'vuln'
-          severity: ${{ inputs.trivy_severity }}
-          exit-code: ${{ inputs.trivy_exit_code }}
-          ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
-          skip-dirs: 'node_modules,.git,vendor'
-          format: 'table'
-        continue-on-error: true
-
-      - name: Trivy SARIF output (with ignore file)
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && steps.trivyignore.outputs.exists == 'true' && always()
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
-        with:
+          version: ${{ inputs.trivy_version }}
           scan-type: 'fs'
           scan-ref: '.'
           scanners: 'vuln'
@@ -211,24 +210,11 @@ jobs:
           exit-code: '0'
           ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
           skip-dirs: 'node_modules,.git,vendor'
-          trivyignores: ${{ inputs.trivyignore_file }}
+          trivyignores: ${{ steps.trivyignore.outputs.exists == 'true' && inputs.trivyignore_file || '' }}
           format: 'sarif'
           output: 'trivy-results.sarif'
-        continue-on-error: true
-
-      - name: Trivy SARIF output (without ignore file)
-        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sarif_upload && steps.trivyignore.outputs.exists != 'true' && always()
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'vuln'
-          severity: ${{ inputs.trivy_severity }}
-          exit-code: '0'
-          ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
-          skip-dirs: 'node_modules,.git,vendor'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          timeout: '10m0s'
+          skip-setup-trivy: true
         continue-on-error: true
 
       - name: Upload Trivy SARIF
@@ -264,6 +250,7 @@ jobs:
       # DYNAMIC: Python Security (pip-audit)
       # ============================================
       - name: Run pip-audit (Python detected)
+        id: pip-audit-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.python == 'true'
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
@@ -280,6 +267,7 @@ jobs:
           node-version: 'lts/*'
 
       - name: Run npm audit (JavaScript detected)
+        id: npm-audit-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.javascript == 'true'
         run: |
           if [ -f "package-lock.json" ]; then
@@ -287,12 +275,12 @@ jobs:
             npm audit --audit-level=high
           elif [ -f "yarn.lock" ]; then
             echo "Running yarn audit..."
-            npm install -g yarn
-            yarn audit --level high
+            corepack enable
+            corepack yarn audit --level high
           elif [ -f "pnpm-lock.yaml" ]; then
             echo "Running pnpm audit..."
-            npm install -g pnpm
-            pnpm audit --audit-level high
+            corepack enable
+            corepack pnpm audit --audit-level high
           else
             echo "No lock file found, skipping audit"
           fi
@@ -309,6 +297,7 @@ jobs:
           cache: false
 
       - name: Run govulncheck (Go detected)
+        id: govulncheck-scan
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.go == 'true'
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
         with:
@@ -319,6 +308,21 @@ jobs:
       # ============================================
       # CORE: Semgrep SAST (enabled by default)
       # ============================================
+      - name: Check for Semgrep ignore file
+        id: semgrep-baseline-check
+        if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
+        run: |
+          if [ -n "${{ inputs.semgrep_baseline }}" ] && [ -f "${{ inputs.semgrep_baseline }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "file=${{ inputs.semgrep_baseline }}" >> "$GITHUB_OUTPUT"
+            echo "Found ${{ inputs.semgrep_baseline }}"
+          elif [ -f ".semgrepignore" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "file=.semgrepignore" >> "$GITHUB_OUTPUT"
+            echo "Found .semgrepignore"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Setup Semgrep
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
         run: pip3 install semgrep==${{ env.SEMGREP_VERSION }}
@@ -329,18 +333,32 @@ jobs:
         id: semgrep-scan
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_sast
         run: |
-          # Convert space-separated configs to multiple --config flags
-          CONFIGS=""
+          set -eo pipefail
+
+          CONFIG_ARGS=()
           for config in ${{ inputs.semgrep_config }}; do
-            CONFIGS="$CONFIGS --config $config"
+            CONFIG_ARGS+=(--config "$config")
           done
 
-          semgrep scan --sarif $CONFIGS --output semgrep.sarif || exit_code=$?
+          EXCLUDE_ARGS=()
+          if [ "${{ steps.semgrep-baseline-check.outputs.exists }}" = "true" ]; then
+            while IFS= read -r pattern || [ -n "$pattern" ]; do
+              pattern="${pattern#"${pattern%%[![:space:]]*}"}"
+              pattern="${pattern%"${pattern##*[![:space:]]}"}"
+              if [ -z "$pattern" ] || [[ "$pattern" == \#* ]]; then
+                continue
+              fi
+              EXCLUDE_ARGS+=(--exclude "$pattern")
+            done < "${{ steps.semgrep-baseline-check.outputs.file }}"
+          fi
+
+          exit_code=0
+          semgrep scan --sarif "${CONFIG_ARGS[@]}" "${EXCLUDE_ARGS[@]}" --output semgrep.sarif || exit_code=$?
           # Semgrep exit codes: 0=no findings, 1=findings, 2+=error
           # We only fail on findings (exit 1), not on errors (exit 2+)
-          if [ "${exit_code:-0}" -eq 1 ]; then
+          if [ "$exit_code" -eq 1 ]; then
             exit 1
-          elif [ "${exit_code:-0}" -gt 1 ]; then
+          elif [ "$exit_code" -gt 1 ]; then
             echo "⚠️ Semgrep encountered an error (exit code $exit_code) but continuing"
             exit 0
           fi
@@ -400,109 +418,141 @@ jobs:
       # OPTIONAL: License Compliance (caller must enable)
       # ============================================
       - name: Run license scan
+        id: license-scan
         if: steps.detect.outputs.any_changed == 'true' && inputs.enable_license_scan
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
+          version: ${{ inputs.trivy_version }}
           scan-type: 'fs'
           scan-ref: '.'
           scanners: 'license'
           exit-code: '1'
           severity: 'UNKNOWN,HIGH,CRITICAL'
+          timeout: '10m0s'
+          skip-setup-trivy: true
         continue-on-error: true
 
       # ============================================
-      # Final Status Check
+      # Reporting and Final Status
       # ============================================
-      - name: Check for security findings
+      - name: Build security scan report
+        id: security-report
         if: steps.detect.outputs.any_changed == 'true' && always()
         run: |
           FAILED=false
+          FAILED_SCANS=()
 
-          if [ "${{ steps.trivy-scan.outcome }}" == "failure" ] || [ "${{ steps.trivy-scan-no-ignore.outcome }}" == "failure" ]; then
-            echo "❌ Trivy found vulnerabilities"
-            FAILED=true
-          fi
+          to_result() {
+            case "$1" in
+              success) echo "✅ Passed" ;;
+              failure) echo "❌ Failed" ;;
+              skipped) echo "⏭️ Skipped" ;;
+              cancelled) echo "⚪ Cancelled" ;;
+              *) echo "⚠️ ${1:-unknown}" ;;
+            esac
+          }
 
-          if [ "${{ steps.trufflehog-scan.outcome }}" == "failure" ]; then
-            echo "❌ TruffleHog found secrets"
-            FAILED=true
-          fi
+          add_row() {
+            echo "| $1 | $2 | $3 | $4 |" >> "$GITHUB_STEP_SUMMARY"
+          }
 
-          if [ "${{ steps.semgrep-scan.outcome }}" == "failure" ]; then
-            echo "❌ Semgrep found security issues"
-            FAILED=true
-          fi
+          mark_failure() {
+            if [ "$1" = "failure" ]; then
+              FAILED=true
+              FAILED_SCANS+=("$2")
+            fi
+          }
 
-          if [ "${{ steps.checkov-scan.outcome }}" == "failure" ]; then
-            echo "❌ Checkov found IaC security issues"
-            FAILED=true
-          fi
+          echo "## 🔒 Security Scan Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Scanner | Trigger | Result | Notes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|---------|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$FAILED" == "true" ]; then
-            echo ""
-            echo "⚠️ Security scans found issues - failing job"
-            exit 1
+          TRIVY_OUTCOME="${{ steps.trivy-scan.outcome }}"
+          add_row "Trivy vulnerability scan" "Always" "$(to_result "$TRIVY_OUTCOME")" "Severity: ${{ inputs.trivy_severity }}"
+          mark_failure "$TRIVY_OUTCOME" "Trivy vulnerability scan"
+
+          TRUFFLEHOG_OUTCOME="${{ steps.trufflehog-scan.outcome }}"
+          add_row "TruffleHog secret detection" "Always" "$(to_result "$TRUFFLEHOG_OUTCOME")" "--only-verified mode"
+          mark_failure "$TRUFFLEHOG_OUTCOME" "TruffleHog secret detection"
+
+          if [ "${{ inputs.enable_sast }}" = "true" ]; then
+            SEMGREP_OUTCOME="${{ steps.semgrep-scan.outcome }}"
+            SEMGREP_NOTES="Config: ${{ inputs.semgrep_config }}"
+            if [ "${{ steps.semgrep-baseline-check.outputs.exists }}" = "true" ]; then
+              SEMGREP_NOTES="$SEMGREP_NOTES, ignore file: ${{ steps.semgrep-baseline-check.outputs.file }}"
+            fi
+            add_row "Semgrep SAST" "Enabled by input" "$(to_result "$SEMGREP_OUTCOME")" "$SEMGREP_NOTES"
+            mark_failure "$SEMGREP_OUTCOME" "Semgrep SAST"
           else
-            echo "✅ All security scans passed"
+            add_row "Semgrep SAST" "Enabled by input" "⏭️ Disabled" "enable_sast=false"
           fi
 
-      # ============================================
-      # Summary
-      # ============================================
-      - name: Security Scan Summary
-        if: steps.detect.outputs.any_changed == 'true'
+          if [ "${{ steps.detect.outputs.python }}" = "true" ]; then
+            PIP_AUDIT_OUTCOME="${{ steps.pip-audit-scan.outcome }}"
+            add_row "pip-audit" "Python files changed" "$(to_result "$PIP_AUDIT_OUTCOME")" "OSV database"
+            mark_failure "$PIP_AUDIT_OUTCOME" "pip-audit"
+          else
+            add_row "pip-audit" "Python files changed" "⏭️ Not triggered" "No Python changes detected"
+          fi
+
+          if [ "${{ steps.detect.outputs.javascript }}" = "true" ]; then
+            NPM_AUDIT_OUTCOME="${{ steps.npm-audit-scan.outcome }}"
+            add_row "npm/yarn/pnpm audit" "JavaScript files changed" "$(to_result "$NPM_AUDIT_OUTCOME")" "Runs based on detected lockfile"
+            mark_failure "$NPM_AUDIT_OUTCOME" "npm/yarn/pnpm audit"
+          else
+            add_row "npm/yarn/pnpm audit" "JavaScript files changed" "⏭️ Not triggered" "No JavaScript changes detected"
+          fi
+
+          if [ "${{ steps.detect.outputs.go }}" = "true" ]; then
+            GOVULNCHECK_OUTCOME="${{ steps.govulncheck-scan.outcome }}"
+            add_row "govulncheck" "Go files changed" "$(to_result "$GOVULNCHECK_OUTCOME")" "Go vulnerability database"
+            mark_failure "$GOVULNCHECK_OUTCOME" "govulncheck"
+          else
+            add_row "govulncheck" "Go files changed" "⏭️ Not triggered" "No Go changes detected"
+          fi
+
+          if [ "${{ steps.detect.outputs.iac }}" = "true" ]; then
+            CHECKOV_OUTCOME="${{ steps.checkov-scan.outcome }}"
+            add_row "Checkov IaC scan" "IaC files changed" "$(to_result "$CHECKOV_OUTCOME")" "Framework: all"
+            mark_failure "$CHECKOV_OUTCOME" "Checkov IaC scan"
+          else
+            add_row "Checkov IaC scan" "IaC files changed" "⏭️ Not triggered" "No IaC changes detected"
+          fi
+
+          if [ "${{ inputs.enable_license_scan }}" = "true" ]; then
+            LICENSE_OUTCOME="${{ steps.license-scan.outcome }}"
+            add_row "Trivy license scan" "Enabled by input" "$(to_result "$LICENSE_OUTCOME")" "Severity: UNKNOWN,HIGH,CRITICAL"
+            mark_failure "$LICENSE_OUTCOME" "Trivy license scan"
+          else
+            add_row "Trivy license scan" "Enabled by input" "⏭️ Disabled" "enable_license_scan=false"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$FAILED" = "true" ]; then
+            FAILED_JOINED="$(printf '%s, ' "${FAILED_SCANS[@]}")"
+            FAILED_JOINED="${FAILED_JOINED%, }"
+            echo "### ❌ Failed checks" >> "$GITHUB_STEP_SUMMARY"
+            for scan in "${FAILED_SCANS[@]}"; do
+              echo "- $scan" >> "$GITHUB_STEP_SUMMARY"
+            done
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Use the failed step logs above for detailed findings and remediation output." >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Security scan failures::$FAILED_JOINED"
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "failed_scans=$FAILED_JOINED" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ All executed security checks passed." >> "$GITHUB_STEP_SUMMARY"
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+            echo "failed_scans=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail job if security scans found issues
+        if: steps.detect.outputs.any_changed == 'true' && always()
         run: |
-          echo "## 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Core Scans (always run)" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy Vulnerability Scan | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
-          echo "| TruffleHog Secret Detection | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.enable_sast }}" == "true" ]; then
-            echo "| Semgrep SAST | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Semgrep SAST | ⏭️ Disabled |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.security-report.outputs.failed }}" = "true" ]; then
+            echo "⚠️ Security scans found issues: ${{ steps.security-report.outputs.failed_scans }}"
+            exit 1
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "### Dynamic Scans (based on detected files)" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.detect.outputs.python }}" == "true" ]; then
-            echo "| pip-audit (Python) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ "${{ steps.detect.outputs.javascript }}" == "true" ]; then
-            echo "| npm/yarn/pnpm audit (JavaScript) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ "${{ steps.detect.outputs.go }}" == "true" ]; then
-            echo "| govulncheck (Go) | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ "${{ steps.detect.outputs.iac }}" == "true" ]; then
-            echo "| Checkov IaC | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ "${{ steps.detect.outputs.python }}" != "true" ] && \
-             [ "${{ steps.detect.outputs.javascript }}" != "true" ] && \
-             [ "${{ steps.detect.outputs.go }}" != "true" ] && \
-             [ "${{ steps.detect.outputs.iac }}" != "true" ]; then
-            echo "| (no language-specific scans needed) | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "### Optional Scans (caller-enabled)" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.enable_license_scan }}" == "true" ]; then
-            echo "| License Scan | ✅ Ran |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| License Scan | ⏭️ Not enabled |" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📊 **Security Results:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Scan results are visible in step logs above" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.enable_sarif_upload }}" == "true" ]; then
-            echo "- SARIF results uploaded to Security tab (requires GHAS for private repos)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- SARIF upload disabled - all findings are shown in logs above (GitHub Advanced Security not required)" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "✅ All security scans passed"
 

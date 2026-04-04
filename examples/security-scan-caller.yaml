@@ -25,4 +25,5 @@ jobs:
     # Default settings work for most repos
     # Uncomment to enable license scanning:
     # with:
+    #   job_timeout_minutes: 30
     #   enable_license_scan: true
