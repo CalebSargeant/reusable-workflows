@@ -40,6 +40,100 @@ name: Reusable Docker Bake to GHCR
 on:
   workflow_call:
     inputs:
+      container_paths:
+        description: 'Paths that trigger container builds (multiline string, one glob pattern per line). Uses dorny/paths-filter syntax.'
+        required: false
+        type: string
+        default: |
+          Dockerfile
+          Dockerfile.*
+          **/Dockerfile
+          **/Dockerfile.*
+          docker-bake.hcl
+          docker-compose*.yml
+          docker-compose*.yaml
+          .dockerignore
+          src/**
+          app/**
+          cmd/**
+          pkg/**
+          internal/**
+          lib/**
+          bin/**
+          scripts/**
+          go.mod
+          go.sum
+          package.json
+          package-lock.json
+          yarn.lock
+          pnpm-lock.yaml
+          requirements.txt
+          pyproject.toml
+          poetry.lock
+          Pipfile
+          Pipfile.lock
+          Cargo.toml
+          Cargo.lock
+          Gemfile
+          Gemfile.lock
+          *.csproj
+          *.fsproj
+          *.vbproj
+          *.sln
+          nuget.config
+          Directory.Build.props
+          Directory.Packages.props
+          global.json
+          composer.json
+          composer.lock
+          pom.xml
+          build.gradle
+          build.gradle.kts
+          settings.gradle
+          settings.gradle.kts
+          mix.exs
+          mix.lock
+          pubspec.yaml
+          pubspec.lock
+          *.go
+          *.py
+          *.js
+          *.ts
+          *.jsx
+          *.tsx
+          *.rb
+          *.rs
+          *.cs
+          *.fs
+          *.vb
+          *.sh
+          *.bash
+          *.zsh
+          *.php
+          *.java
+          *.kt
+          *.kts
+          *.scala
+          *.ex
+          *.exs
+          *.erl
+          *.hrl
+          *.swift
+          *.m
+          *.mm
+          *.c
+          *.cpp
+          *.cc
+          *.cxx
+          *.h
+          *.hpp
+          *.hxx
+          *.lua
+          *.pl
+          *.pm
+          *.r
+          *.R
+          *.dart
       bake_file:
         description: 'Path to docker-bake file'
         required: false
@@ -148,6 +242,9 @@ on:
       validated_version:
         description: 'The validated/auto-determined version (when version_branch_mapping is enabled)'
         value: ${{ jobs.validate-version.outputs.version }}
+      build_skipped:
+        description: 'Whether the build was skipped due to path filtering. Callers should check this before using version/image outputs.'
+        value: ${{ jobs.build.outputs.build_skipped }}
     secrets:
       registry_username:
         required: false
@@ -776,6 +873,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       image: ${{ steps.image.outputs.full_name }}
       image_with_tag: ${{ inputs.registry }}/${{ steps.image.outputs.full_name }}:${{ steps.version.outputs.version }}
+      build_skipped: ${{ steps.filter.outputs.container != 'true' }}
     permissions:
       contents: read
       packages: write
@@ -788,10 +886,62 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Create paths filter config
+        id: create-filter
+        run: |
+          # Create a properly formatted YAML filter file
+          # The container_paths input contains plain glob patterns, one per line
+          # We convert them to YAML list format with proper quoting
+
+          echo "container:" > "$RUNNER_TEMP/paths-filter.yml"
+
+          # Read each pattern and format as YAML list item
+          pattern_count=0
+          while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+            # Trim leading/trailing whitespace without re-parsing the content
+            pattern=$(printf '%s\n' "$pattern" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            # Skip empty lines
+            [[ -z "$pattern" ]] && continue
+            # Always quote patterns to avoid YAML parsing/semantic issues
+            # Escape single quotes for YAML single-quoted scalars: ' -> ''
+            escaped_pattern=${pattern//\'/\'\'}
+            echo "  - '$escaped_pattern'" >> "$RUNNER_TEMP/paths-filter.yml"
+            ((++pattern_count))
+          done <<< "${{ inputs.container_paths }}"
+
+          # Verify at least one pattern was added
+          if [ "$pattern_count" -eq 0 ]; then
+            echo "::error::No container paths patterns provided. The container_paths input is empty or contains only whitespace."
+            exit 1
+          fi
+
+          echo "Filter config ($pattern_count patterns):"
+          cat "$RUNNER_TEMP/paths-filter.yml"
+
+      - name: Check for container-related changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: ${{ runner.temp }}/paths-filter.yml
+
+      - name: Build decision
+        run: |
+          if [ "${{ steps.filter.outputs.container }}" == "true" ]; then
+            echo "✓ Container-related files changed - build will proceed"
+          else
+            echo "ℹ️ No container-related files changed - build will be skipped"
+            echo ""
+            echo "To trigger a build, modify files matching the container_paths filter."
+            echo "Current filter patterns:"
+            echo "${{ inputs.container_paths }}" | sed 's/^/  /'
+          fi
+
       - name: Set up QEMU
+        if: steps.filter.outputs.container == 'true'
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
+        if: steps.filter.outputs.container == 'true'
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         with:
           driver-opts: |
@@ -800,6 +950,7 @@ jobs:
           buildkitd-flags: --debug
 
       - name: Log in to Container Registry
+        if: steps.filter.outputs.container == 'true'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ inputs.registry }}
@@ -807,8 +958,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine version
+        if: steps.filter.outputs.container == 'true'
         id: version
-        run: |
+        run:
           VERSION="latest"
           EVENT_NAME="${{ github.event_name }}"
           REF="${{ github.ref }}"
@@ -847,8 +999,9 @@ jobs:
           echo "Building version: ${VERSION}"
 
       - name: Set image name
+        if: steps.filter.outputs.container == 'true'
         id: image
-        run: |
+        run:
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           # Use image_name if provided, otherwise fall back to bake_target
           IMAGE_NAME="${{ inputs.image_name }}"
@@ -859,13 +1012,14 @@ jobs:
           echo "full_name=${OWNER_LOWER}/${IMAGE_LOWER}" >> "$GITHUB_OUTPUT"
 
       - name: Export build variables
-        if: inputs.buildx_vars != ''
+        if: steps.filter.outputs.container == 'true' && inputs.buildx_vars != ''
         run: |
           # Export each KEY=VALUE pair as environment variable for docker/bake-action
           # Bake automatically picks up env vars matching variable names in the HCL file
           printf '%s\n' "${{ inputs.buildx_vars }}" >> "$GITHUB_ENV"
 
       - name: Build with Docker Bake
+        if: steps.filter.outputs.container == 'true'
         uses: docker/bake-action@3acf805d94d93a86cce4ca44798a76464a75b88c # v6.9.0
         with:
           files: |
