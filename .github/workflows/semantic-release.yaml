@@ -48,27 +48,7 @@ on:
       - '**.md'
       - '.gitignore'
       - 'LICENSE'
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Version bump type'
-        required: false
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-      prerelease:
-        description: 'Create a pre-release'
-        required: false
-        default: false
-        type: boolean
-      prerelease_token:
-        description: 'Pre-release identifier (e.g., alpha, beta, rc)'
-        required: false
-        default: 'rc'
-        type: string
+  workflow_dispatch: {}
   workflow_call:
     inputs:
       bump:
@@ -153,7 +133,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           ref: ${{ github.ref_name }}
-          fetch-depth: ${{ inputs.fetch_depth }}  # Fetch full history by default (0) so semantic release can analyze all commits and find previous tags
+          fetch-depth: ${{ inputs.fetch_depth || 0 }}  # Fetch full history by default (0) so semantic release can analyze all commits and find previous tags
           fetch-tags: true  # Explicitly fetch tags for version detection
           # Use GitHub App token, PAT, or default GITHUB_TOKEN
           token: ${{ steps.app-token.outputs.token || secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
@@ -194,10 +174,10 @@ jobs:
           github_token: ${{ steps.app-token.outputs.token || secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           git_committer_name: "github-actions[bot]"
           # Force version bump for manual dispatch
-          force: ${{ inputs.bump }}
+          force: ${{ inputs.bump || '' }}
           # Pre-release configuration
-          prerelease: ${{ inputs.prerelease }}
-          prerelease_token: ${{ inputs.prerelease_token }}
+          prerelease: ${{ inputs.prerelease || false }}
+          prerelease_token: ${{ inputs.prerelease_token || 'rc' }}
           # Skip build since this is infrastructure, not a Python package
           build: false
           # Enable changelog generation
@@ -207,4 +187,4 @@ jobs:
           # Enable commits if we have elevated permissions (App or PAT)
           commit: true
           # Working directory
-          directory: ${{ inputs.working_directory }}
+          directory: ${{ inputs.working_directory || '.' }}
