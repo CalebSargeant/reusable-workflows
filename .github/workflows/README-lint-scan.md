@@ -157,6 +157,8 @@ When K8s files change, the workflow:
 3. **kubeconform** - Validates against K8s schemas
 4. **kube-score** - Checks for best practices
 
+`kubeconform` runs without strict mode and with `-ignore-missing-schemas`, so SOPS-encrypted `Secret` manifests and CRDs such as `ExternalSecret` can be linted without failing on unsupported schema fields.
+
 ## Ignoring Issues
 
 ### ESLint - `.eslintrc` or `eslint.config.js`

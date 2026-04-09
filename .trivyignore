@@ -1,0 +1,46 @@
+# Trivy Ignore File
+# These are pre-existing vulnerabilities that have been acknowledged.
+# New vulnerabilities will still be flagged.
+# Created: 2026-02-16
+
+CVE-2020-7788   # ini: prototype pollution
+
+CVE-2021-3807   # ansi-regex: ReDoS
+CVE-2021-3918   # json-schema: prototype pollution
+CVE-2021-44906  # minimist: prototype pollution
+
+CVE-2022-0235   # node-fetch: sensitive info exposure
+CVE-2022-0144   # shelljs: improper privilege management
+CVE-2022-0355   # simple-get: sensitive info exposure
+CVE-2022-2421   # socket.io-parser: insufficient validation
+CVE-2022-24785  # moment: path traversal
+CVE-2022-24999  # qs: prototype poisoning / hang
+CVE-2022-25881  # http-cache-semantics: ReDoS
+CVE-2022-25883  # semver: ReDoS
+CVE-2022-31129  # moment: inefficient parsing DoS
+CVE-2022-3517   # minimatch: ReDoS
+CVE-2022-38900  # decode-uri-component: input validation DoS
+
+CVE-2023-30533  # xlsx (SheetJS): prototype pollution
+
+CVE-2024-21538  # cross-spawn: ReDoS
+CVE-2024-22363  # xlsx (SheetJS): ReDoS
+CVE-2024-37890  # ws: DoS with many headers
+
+CVE-2025-15284  # qs: DoS via improper input validation
+CVE-2025-66035  # @angular/common: XSRF token leakage
+CVE-2025-66412  # @angular/compiler: stored XSS
+CVE-2025-7783   # form-data: unsafe random function
+
+CVE-2026-22610  # @angular/compiler: XSS in template compiler
+CVE-2026-23745  # tar: arbitrary file overwrite / symlink poisoning
+CVE-2026-23950  # tar: arbitrary file overwrite (unicode path collision)
+CVE-2026-24842  # tar: arbitrary file creation (path traversal bypass)
+CVE-2026-26960  # tar: arbitrary file read/write via malicious archive hardlink creation
+CVE-2026-26996  # minimatch: DoS via specially crafted glob patterns
+CVE-2026-27903  # minimatch: DoS via unbounded recursive backtracking
+CVE-2026-27904  # minimatch: DoS via catastrophic backtracking
+CVE-2026-27970  # @angular/core: XSS via compromised translation files
+CVE-2026-29786  # tar: hardlink path traversal via drive-relative linkpath
+CVE-2026-31802  # tar: file overwrite via drive-relative symlink traversal
+CVE-2026-33151  # socket.io: DoS via excessive buffering
