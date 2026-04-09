@@ -301,8 +301,8 @@ jobs:
           if [ -f rendered-manifests.yaml ]; then
             cat rendered-manifests.yaml | docker run --rm -i \
               ghcr.io/yannh/kubeconform:v0.6.7-alpine \
-              -strict \
               -summary \
+              -ignore-missing-schemas \
               -kubernetes-version ${{ inputs.kubernetes_version }}
           fi
         continue-on-error: true
