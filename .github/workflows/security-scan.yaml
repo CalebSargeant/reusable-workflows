@@ -109,6 +109,7 @@ jobs:
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: detect
         with:
+          list-files: json
           filters: |
             any_changed:
               - '**/*'
@@ -146,6 +147,7 @@ jobs:
               - '**/helm/**'
               - '**/*.yaml'
               - '**/*.yml'
+              - '!.github/workflows/**'
 
       - name: Detection summary
         run: |
@@ -430,20 +432,68 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "No Checkov config file found"
           fi
-
-      - name: Run Checkov IaC scan (IaC detected)
-        id: checkov-scan
+      - name: Build Checkov target list
+        id: checkov-targets
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true'
+        env:
+          IAC_FILES_JSON: ${{ steps.detect.outputs.iac_files }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ.get("IAC_FILES_JSON", "[]")
+          try:
+            changed_files = json.loads(raw)
+          except json.JSONDecodeError:
+            changed_files = []
+
+          targets = []
+          for candidate in changed_files:
+            if not isinstance(candidate, str):
+              continue
+            path = Path(candidate)
+            if not path.is_file():
+              continue
+            lower = candidate.lower()
+            if (
+              lower.endswith((".tf", ".tfvars", ".hcl", ".yaml", ".yml"))
+              or path.name == "Dockerfile"
+            ):
+              targets.append(candidate)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            if not targets:
+              output.write("has_targets=false\n")
+              output.write("file_arg=\n")
+              output.write("count=0\n")
+              raise SystemExit(0)
+
+            file_arg = " -f ".join(targets)
+            output.write("has_targets=true\n")
+            output.write(f"file_arg={file_arg}\n")
+            output.write(f"count={len(targets)}\n")
+          PY
+
+      - name: Run Checkov IaC scan (changed IaC files)
+        id: checkov-scan
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true' && steps.checkov-targets.outputs.has_targets == 'true'
         uses: bridgecrewio/checkov-action@b3c44b4437c93549fc8cfaef9208497ba4955d39 # v12.3081.0
         with:
-          directory: .
-          framework: all
+          file: ${{ steps.checkov-targets.outputs.file_arg }}
+          framework: terraform,kubernetes,dockerfile
           config_file: ${{ steps.checkov-config.outputs.exists == 'true' && steps.checkov-config.outputs.file || '' }}
           skip_check: ${{ inputs.checkov_skip_checks }}
           output_format: ${{ inputs.enable_sarif_upload && 'sarif' || 'cli' }}
           output_file_path: ${{ inputs.enable_sarif_upload && 'checkov-results.sarif' || '' }}
           soft_fail: false
         continue-on-error: true
+
+      - name: Skip Checkov scan (no IaC files left to scan)
+        if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true' && steps.checkov-targets.outputs.has_targets != 'true'
+        run: |
+          echo "No existing IaC files to scan after filtering (for example, delete-only changes)."
 
       - name: Upload Checkov SARIF
         if: steps.detect.outputs.any_changed == 'true' && steps.detect.outputs.iac == 'true' && inputs.enable_sarif_upload && always()
@@ -565,7 +615,7 @@ jobs:
 
           if [ "${{ steps.detect.outputs.iac }}" = "true" ]; then
             CHECKOV_OUTCOME="${{ steps.checkov-scan.outcome }}"
-            add_row "Checkov IaC scan" "IaC files changed" "$(to_result "$CHECKOV_OUTCOME")" "Framework: all"
+            add_row "Checkov IaC scan" "IaC files changed" "$(to_result "$CHECKOV_OUTCOME")" "Framework: terraform,kubernetes,dockerfile (changed files only)"
             mark_failure "$CHECKOV_OUTCOME" "Checkov IaC scan"
           else
             add_row "Checkov IaC scan" "IaC files changed" "⏭️ Not triggered" "No IaC changes detected"
