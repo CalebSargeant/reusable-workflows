@@ -2,6 +2,179 @@
 
 <!-- version list -->
 
+## v1.16.0 (2026-09-18)
+
+### Bug Fixes
+
+- Add Checkov config file detection and use in IaC scan step
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Add Checkov config file detection and use in IaC scan step
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Add container path filtering to skip builds when no relevant files change
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Add container path filtering to skip builds when no relevant files change
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Enhance Checkov scanning logic to filter IaC files and handle empty targets
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Enhance Checkov scanning logic to filter IaC files and handle empty targets
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Enhance Trivy installation and scanning logic to handle failures gracefully
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Enhance Trivy installation and scanning logic to handle failures gracefully
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Handle absence of Trivy ignore file by running scanner without ignore and updating SARIF output
+  steps ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Handle absence of Trivy ignore file by running scanner without ignore and updating SARIF output
+  steps ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Remove continue-on-error for security audits in workflow
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Remove continue-on-error for security audits in workflow
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Simplify workflow_dispatch inputs in semantic-release configuration
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Simplify workflow_dispatch inputs in semantic-release configuration
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Specify 'vuln' scanner for Trivy steps in security-scan workflow
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Specify 'vuln' scanner for Trivy steps in security-scan workflow
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Update .github/workflows/docker-release.yaml
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Update .github/workflows/docker-release.yaml
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Update security scan documentation and workflow to handle optional ignore files
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Update security scan workflow to handle optional SARIF upload and trufflehog exclude file
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Update security scan workflow to handle optional SARIF upload and trufflehog exclude file
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Update Semgrep SAST step to install and run via CLI instead of GitHub Action
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Update Semgrep SAST step to install and run via CLI instead of GitHub Action
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Update Semgrep SAST step to use correct action reference in workflow
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Update Semgrep SAST step to use correct action reference in workflow
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Update Trivy version to v0.69.3 and improve installation script logic
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Update Trivy version to v0.69.3 and improve installation script logic
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+### Chores
+
+- Check the status of all checks as the last step, to allow us to see results of all scans run in
+  the mono-job ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Check the status of all checks as the last step, to allow us to see results of all scans run in
+  the mono-job ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- **deps**: Bump actions/github-script from 7.1.0 to 8.0.0
+  ([#68](https://github.com/CalebSargeant/reusable-workflows/pull/68),
+  [`f27e090`](https://github.com/CalebSargeant/reusable-workflows/commit/f27e09064220871421e61a849e5b27f6c0308fd6))
+
+- **deps**: Bump actions/setup-go from 5.6.0 to 6.2.0
+  ([#65](https://github.com/CalebSargeant/reusable-workflows/pull/65),
+  [`0276b8c`](https://github.com/CalebSargeant/reusable-workflows/commit/0276b8c20f6ce280a871b1e06cf4379fc4f87808))
+
+- **deps**: Bump docker/bake-action from 6.9.0 to 6.10.0
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- **deps**: Bump github/codeql-action from 3.32.3 to 4.32.3
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- **deps**: Bump peter-evans/create-pull-request from 7.0.8 to 8.1.0
+  ([#67](https://github.com/CalebSargeant/reusable-workflows/pull/67),
+  [`acb4221`](https://github.com/CalebSargeant/reusable-workflows/commit/acb42218db1c473c0aec50f17ba5e5f764d3a60d))
+
+### Features
+
+- Add job timeout configuration and enhance lint scan reporting
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Add job timeout configuration and enhance lint scan reporting
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Add lint and security scan workflows with configuration for job timeouts and failure handling
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Add lint and security scan workflows with configuration for job timeouts and failure handling
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+- Add reusable lint scan workflow for code quality checks
+  ([#69](https://github.com/CalebSargeant/reusable-workflows/pull/69),
+  [`a4dc66f`](https://github.com/CalebSargeant/reusable-workflows/commit/a4dc66f50e5c374f12816732b77ab24a3be660f7))
+
+- Add reusable lint scan workflow for code quality checks
+  ([#66](https://github.com/CalebSargeant/reusable-workflows/pull/66),
+  [`38d94bb`](https://github.com/CalebSargeant/reusable-workflows/commit/38d94bbe72978972d9d42f6eb5412b0c774718a1))
+
+
 ## v1.15.0 (2026-04-09)
 
 ### Bug Fixes
