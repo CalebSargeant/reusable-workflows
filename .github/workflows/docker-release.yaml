@@ -960,7 +960,7 @@ jobs:
       - name: Determine version
         if: steps.filter.outputs.container == 'true'
         id: version
-        run:
+        run: |
           VERSION="latest"
           EVENT_NAME="${{ github.event_name }}"
           REF="${{ github.ref }}"
@@ -1001,7 +1001,7 @@ jobs:
       - name: Set image name
         if: steps.filter.outputs.container == 'true'
         id: image
-        run:
+        run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           # Use image_name if provided, otherwise fall back to bake_target
           IMAGE_NAME="${{ inputs.image_name }}"
