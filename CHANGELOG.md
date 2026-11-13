@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.16.1 (2026-11-13)
+
+### Bug Fixes
+
+- **docker-release**: Make the version and image steps block scalars
+  ([#85](https://github.com/CalebSargeant/reusable-workflows/pull/85),
+  [`208fcef`](https://github.com/CalebSargeant/reusable-workflows/commit/208fcef01bc29b165f4d3594217635aa4b4f5022))
+
+
 ## v1.16.0 (2026-09-18)
 
 ### Bug Fixes
